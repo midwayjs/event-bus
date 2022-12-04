@@ -9,6 +9,9 @@ async function createWorker() {
     bus.publish({
       data: 'hello world'
     });
+  },
+  {
+    topic: 'target',
   });
 
   await bus.start();

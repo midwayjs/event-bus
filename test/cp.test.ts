@@ -18,6 +18,8 @@ describe('/test/cp.test.ts', function () {
         data: {
           name: 'test',
         }
+      }, {
+        topic: 'target'
       });
     });
 

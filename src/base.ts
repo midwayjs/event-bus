@@ -10,34 +10,56 @@ import {
   MessageCategory,
   MessageType,
   PublishOptions,
+  SubscribeOptions,
+  SubscribeTopicListener,
 } from './interface';
 import { randomUUID } from 'crypto';
 import { debuglog } from 'util';
 import {
   EventBusMainPostError,
+  EventBusPublishSpecifyWorkerError,
   EventBusPublishTimeoutError,
   EventBusWaitWorkerInitedTimeoutError,
   EventBusWorkerPostError,
 } from './error';
+
+const DEFAULT_LISTENER_KEY = '_default_';
 
 export abstract class AbstractEventBus<T> implements IEventBus<T> {
   private isInited = false;
   protected workers: T[] = [];
   protected stopping = false;
   private hub = new EventEmitter();
-  protected workerReady = new Map<number, boolean>();
-  private listener: (message: Message, callback?: (data: any) => void) => void;
+  protected workerReady = new Map<string, { worker: T; ready: boolean }>();
+  private listener: SubscribeTopicListener;
+  private topicListener: Map<string, Set<SubscribeTopicListener>> = new Map();
   private asyncMessageMap = new Map<string, any>();
   protected eventListenerMap = new Map<string, any>();
   protected debugLogger = this.createDebugger();
 
   constructor(protected readonly options: EventBusOptions = {}) {
     this.debugLogger(
-      `Start EventBus in ${this.isWorker() ? 'worker' : 'main'}`
+      `Start EventBus(${this.constructor.name}) in ${
+        this.isWorker() ? 'worker' : 'main'
+      }`
     );
     this.eventListenerMap.set(ListenerType.Error, (err: Error) => {
       console.error(err);
     });
+
+    this.listener = (message, callback?) => {
+      const listeners = this.topicListener.get(
+        message.messageOptions?.topic || DEFAULT_LISTENER_KEY
+      );
+
+      for (const listener of listeners) {
+        if (listener['_subscribeOnce']) {
+          listeners.delete(listener);
+        }
+        listener(message, callback);
+      }
+    };
+
     // bind event center
     this.setupEventBind();
   }
@@ -102,7 +124,10 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       this.debugLogger(
         `Init worker(${this.getWorkerId(worker)}) status = false`
       );
-      this.workerReady.set(this.getWorkerId(worker), false);
+      this.workerReady.set(this.getWorkerId(worker), {
+        worker,
+        ready: false,
+      });
     } else {
       this.debugLogger(`Skip init worker(${this.getWorkerId(worker)}) status`);
     }
@@ -131,7 +156,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
 
   private isAllWorkerReady() {
     for (const [workerId, value] of this.workerReady) {
-      if (!value) {
+      if (!value || !value.ready) {
         this.debugLogger(`Worker(${workerId}) not ready.`);
         return false;
       }
@@ -220,7 +245,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
             // trigger in worker
             this.eventListenerMap.get(ListenerType.Inited)?.(originMessage);
             // got init status from worker
-            this.workerReady.set(originMessage.workerId, true);
+            this.workerReady.get(originMessage.workerId).ready = true;
             this.debugLogger(`got worker ${originMessage.workerId} ready`);
           } else {
             // ignore
@@ -245,9 +270,24 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   }
 
   public subscribe(
-    listener: (message: Message, callback?: (data: any) => void) => void
+    listener: (message: Message, callback?: (data: any) => void) => void,
+    options: SubscribeOptions = {}
   ) {
-    this.listener = listener;
+    if (!this.topicListener.has(options.topic)) {
+      this.topicListener.set(options.topic || DEFAULT_LISTENER_KEY, new Set());
+    }
+    if (options.subscribeOnce) {
+      listener['_subscribeOnce'] = true;
+    }
+    this.topicListener.get(options.topic || DEFAULT_LISTENER_KEY).add(listener);
+  }
+
+  public subscribeOnce(
+    listener: (message: Message, callback?: (data: any) => void) => void,
+    options: SubscribeOptions = {}
+  ) {
+    options.subscribeOnce = true;
+    this.subscribe(listener, options);
   }
 
   public publish(data: unknown, publishOptions: PublishOptions = {}): void {
@@ -335,6 +375,16 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           } else {
             this.workers.forEach(w => this.mainSendMessage(w, message));
           }
+        } else if (message.messageOptions?.['targetWorkerId']) {
+          const targetWorker = this.workerReady.get(
+            message.messageOptions?.['targetWorkerId']
+          )?.worker;
+          if (!targetWorker) {
+            throw new EventBusPublishSpecifyWorkerError(
+              message.messageOptions?.['targetWorkerId']
+            );
+          }
+          this.mainSendMessage(targetWorker, message);
         } else {
           // round ring
           const worker = this.workers.shift();
@@ -370,7 +420,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   protected abstract mainSendMessage(worker: T, message: Message);
   public abstract isMain();
   public abstract isWorker();
-  public abstract getWorkerId(worker?: T);
+  public abstract getWorkerId(worker?: T): string;
 
   public onInited(listener: (message: Message<unknown>) => void) {
     this.eventListenerMap.set(ListenerType.Inited, listener);

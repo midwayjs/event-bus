@@ -25,14 +25,14 @@ export class ThreadEventBus extends AbstractEventBus<Worker> {
   }
 
   isMain() {
-    return isMainThread;
+    return !this.isWorker();
   }
 
   isWorker() {
     return this.options.isWorker ?? !isMainThread;
   }
 
-  getWorkerId(worker?: Worker) {
-    return worker ? worker.threadId : threadId;
+  getWorkerId(worker?: Worker): string {
+    return String(worker ? worker.threadId : threadId);
   }
 }

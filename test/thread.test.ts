@@ -18,6 +18,9 @@ describe('/test/thread.test.ts', function () {
         data: {
           name: 'test',
         }
+      },
+      {
+        topic: 'target',
       });
     });
 

@@ -36,7 +36,7 @@ export enum MessageCategory {
 
 export type Message<BODY = any> = {
   messageId: string;
-  workerId: number;
+  workerId: string;
   type: MessageType;
   error?: { stack: string };
   body: BODY;
@@ -56,6 +56,8 @@ export interface EventBusOptions {
 export interface PublishOptions {
   timeout?: number;
   relatedMessageId?: string;
+  targetWorkerId?: string;
+  topic?: string;
 }
 
 export interface BroadcastOptions {
@@ -68,16 +70,31 @@ export interface BroadcastOptions {
    */
   includeMainFromWorker?: boolean;
   relatedMessageId?: string;
-  relatedWorkerId?: number;
+  relatedWorkerId?: string;
+  topic?: string;
 }
+
+export interface SubscribeOptions {
+  topic?: string;
+  subscribeOnce?: boolean;
+}
+
+export type SubscribeTopicListener = (
+  message: Message,
+  callback?: (data: any) => void
+) => void;
 
 export interface IEventBus<T> {
   addWorker(worker: T);
   start(): Promise<void>;
-  subscribe(callback: (message: Message) => void);
-  publishAsync(data: Message, publishOptions?: PublishOptions): Promise<any>;
-  publish(data: Message, publishOptions?: PublishOptions);
-  broadcast(data: Message, options?: BroadcastOptions);
+  subscribe(callback: (message: Message) => void, options?: SubscribeOptions);
+  subscribeOnce(
+    callback: (message: Message) => void,
+    options?: SubscribeOptions
+  );
+  publishAsync(data: unknown, publishOptions?: PublishOptions): Promise<any>;
+  publish(data: unknown, publishOptions?: PublishOptions);
+  broadcast(data: unknown, options?: BroadcastOptions);
   isMain(): boolean;
   isWorker(): boolean;
   getWorkerId(worker: T): string;

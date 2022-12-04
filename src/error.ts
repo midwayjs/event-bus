@@ -29,3 +29,15 @@ export class EventBusWorkerPostError extends Error {
     this.name = 'EventBusWorkerPostError';
   }
 }
+
+export class EventBusPublishSpecifyWorkerError extends Error {
+  constructor(workerId) {
+    super(
+      format(
+        'Worker(%s) not find in ready map, maybe it is a wrong pid.',
+        workerId
+      )
+    );
+    this.name = 'EventBusPublishSpecifyWorkerError';
+  }
+}

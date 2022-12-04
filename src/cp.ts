@@ -34,7 +34,7 @@ export class ChildProcessEventBus extends AbstractEventBus<ChildProcess> {
     return this.options.isWorker ?? cluster.isWorker;
   }
 
-  getWorkerId(worker?: ChildProcess) {
-    return worker ? worker.pid : process.pid;
+  getWorkerId(worker?: ChildProcess): string {
+    return String(worker ? worker.pid ?? worker?.['process'].pid : process.pid);
   }
 }
