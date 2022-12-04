@@ -52,11 +52,13 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         message.messageOptions?.topic || DEFAULT_LISTENER_KEY
       );
 
-      for (const listener of listeners) {
-        if (listener['_subscribeOnce']) {
-          listeners.delete(listener);
+      if (listeners) {
+        for (const listener of listeners) {
+          if (listener['_subscribeOnce']) {
+            listeners.delete(listener);
+          }
+          listener(message, callback);
         }
-        listener(message, callback);
       }
     };
 
