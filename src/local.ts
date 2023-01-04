@@ -1,5 +1,5 @@
 import { AbstractEventBus } from './base';
-import { Message } from './interface';
+import { EventBusOptions, Message } from './interface';
 
 class LocalDispatcher {
   private pidIdx = 0;
@@ -40,7 +40,7 @@ class LocalWorker {
 export class LocalEventBus extends AbstractEventBus<LocalWorker> {
   private worker: LocalWorker = new LocalWorker(dispatcher.generatePid());
 
-  constructor(options) {
+  constructor(options: EventBusOptions = {}) {
     super(options);
     if (this.isMain()) {
       this.debugLogger(`Main id=${this.worker.getWorkerId()}`);
