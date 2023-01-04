@@ -17,7 +17,7 @@ export class EventBusWaitWorkerInitedTimeoutError extends Error {
 export class EventBusMainPostError extends Error {
   constructor(message, err) {
     super(
-      format('Mainthread post message [%j] error => %j.', message, err.stack)
+      format('Mainthread post message [%j] error => %s.', message, err.stack)
     );
     this.name = 'EventBusMainPostError';
   }

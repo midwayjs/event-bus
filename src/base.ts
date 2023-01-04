@@ -13,7 +13,6 @@ import {
   SubscribeOptions,
   SubscribeTopicListener,
 } from './interface';
-import { randomUUID } from 'crypto';
 import { debuglog } from 'util';
 import {
   EventBusMainPostError,
@@ -75,15 +74,15 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   private debugDataflow(message: EventCenterMessage) {
     if (message.messageCategory === MessageCategory.IN) {
       if (this.isMain()) {
-        return `${message.message.type}: worker => main(△)`;
+        return `${message.message.type}|${message.messageCategory}: worker => main(△)`;
       } else {
-        return `${message.message.type}: main => worker(△)`;
+        return `${message.message.type}|${message.messageCategory}: main => worker(△)`;
       }
     } else {
       if (this.isMain()) {
-        return `${message.message.type}: main(△) => worker`;
+        return `${message.message.type}|${message.messageCategory}: main(△) => worker`;
       } else {
-        return `${message.message.type}: worker(△) => main`;
+        return `${message.message.type}|${message.messageCategory}: worker(△) => main`;
       }
     }
   }
@@ -107,11 +106,18 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         }, 200);
       });
     } else {
+      // listen main => worker in worker
+      this.workerSubscribeMessage((message: Message) => {
+        this.transit({
+          messageCategory: MessageCategory.IN,
+          message,
+        });
+      });
       // worker => main
       this.transit({
         messageCategory: MessageCategory.OUT,
         message: {
-          messageId: randomUUID(),
+          messageId: this.generateMessageId(),
           workerId: this.getWorkerId(),
           type: MessageType.Inited,
           body: this.isInited,
@@ -133,7 +139,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     } else {
       this.debugLogger(`Skip init worker(${this.getWorkerId(worker)}) status`);
     }
-    worker['on']('exit', async (exitCode: number) => {
+    worker?.['on']('exit', async (exitCode: number) => {
       if (!this.stopping) {
         // remove ready status
         this.workerReady.delete(this.getWorkerId(worker));
@@ -255,16 +261,6 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         }
       }
     });
-
-    if (this.isWorker()) {
-      // listen main => worker in worker
-      this.workerSubscribeMessage((message: Message) => {
-        this.transit({
-          messageCategory: MessageCategory.IN,
-          message,
-        });
-      });
-    }
   }
 
   protected transit(message: EventCenterMessage) {
@@ -296,7 +292,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     this.transit({
       messageCategory: MessageCategory.OUT,
       message: {
-        messageId: publishOptions.relatedMessageId || randomUUID(),
+        messageId: publishOptions.relatedMessageId || this.generateMessageId(),
         workerId: this.getWorkerId(),
         type: this.isMain() ? MessageType.Request : MessageType.Response,
         body: data,
@@ -310,7 +306,8 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     publishOptions: PublishOptions = {}
   ): Promise<any> {
     return new Promise((resolve, reject) => {
-      const messageId = publishOptions.relatedMessageId || randomUUID();
+      const messageId =
+        publishOptions.relatedMessageId || this.generateMessageId();
 
       const handler = setTimeout(() => {
         clearTimeout(handler);
@@ -346,7 +343,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     this.transit({
       messageCategory: MessageCategory.OUT,
       message: {
-        messageId: options.relatedMessageId || randomUUID(),
+        messageId: options.relatedMessageId || this.generateMessageId(),
         workerId: this.getWorkerId(),
         type: MessageType.Broadcast,
         body: data,
@@ -389,7 +386,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           this.mainSendMessage(targetWorker, message);
         } else {
           // round ring
-          const worker = this.workers.shift();
+          const [worker, ...otherWorkers] = this.workers;
           try {
             this.mainSendMessage(worker, message);
           } catch (err) {
@@ -397,7 +394,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
               new EventBusMainPostError(message, err)
             );
           }
-          this.workers.push(worker);
+          this.workers = [...otherWorkers, worker];
         }
       }
     } else {
@@ -447,5 +444,9 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     this.eventListenerMap.clear();
     this.listener = null;
     this.workers.length = 0;
+  }
+
+  generateMessageId() {
+    return Math.random().toString(36).substring(2);
   }
 }

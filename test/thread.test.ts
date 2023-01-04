@@ -82,7 +82,7 @@ describe('/test/thread.test.ts', function () {
     await bus.stop();
   });
 
-  it('test broadcase withoutself no effect for main thread', async () => {
+  it('test broadcast without self no effect for main thread', async () => {
     const bus = new ThreadEventBus();
     let total = 0;
 
@@ -107,6 +107,9 @@ describe('/test/thread.test.ts', function () {
         data: {
           name: 'test',
         }
+      }, {
+        includeSelfFromWorker: true,
+        includeMainFromWorker: true,
       });
     })
 
