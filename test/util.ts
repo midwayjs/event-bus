@@ -36,3 +36,12 @@ export function createChildProcessWorker(WORKER_FILE): ChildProcess {
     ]
   });
 }
+
+export function createLocalWorker(WORKER_FILE) {
+  return require(WORKER_FILE);
+}
+
+// sleep
+export function sleep(ms: number = 1000) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

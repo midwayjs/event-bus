@@ -6,7 +6,7 @@
   "typings": "dist/index.d.ts",
   "scripts": {
     "build": "rm -rf dist && tsc",
-    "test": "NODE_DEBUG=midway* jest",
+    "test": "NODE_DEBUG=midway* jest --runInBand",
     "cov": "jest --coverage",
     "lint": "mwts lint",
     "lint:fix": "mwts fix"

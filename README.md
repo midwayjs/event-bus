@@ -1,6 +1,6 @@
 # Event-Bus
 
-Event Bus 用来完成父子进程之间的消息传递，包括同步的调用，异步的发送，以及广播的能力，支持进程和线程两种模式。
+Event Bus 用来完成父子进程之间的消息传递，包括同步的调用，异步的发送，以及广播的能力，支持进程、线程、同一进程内调用三种模式。
 
 ## Usage
 
@@ -70,6 +70,27 @@ const bus = new ChildProcessEventBus({
 // 启动客户端，自动向 master 发送消息
 await bus.start();
 ```
+
+为了方便同进程研发，也提供了相同接口的 LocalEventBus。
+
+```ts
+import { LocalEventBus } from '@midwayjs/event-bus';
+
+// in main
+const bus = new LocalEventBus({
+  isWorker: false,
+});
+await bus.start();
+
+// in worker
+const bus = new LocalEventBus({
+  isWorker: true,
+});
+
+await bus.start();
+```
+
+注意，本地模式下，需要在不同文件中，且 worker 只能有一个。
 
 
 ## API
