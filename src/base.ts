@@ -12,17 +12,39 @@ import {
   PublishOptions,
   SubscribeOptions,
   SubscribeTopicListener,
+  WaitCheckOptions,
 } from './interface';
 import { debuglog } from 'util';
 import {
   EventBusMainPostError,
   EventBusPublishSpecifyWorkerError,
   EventBusPublishTimeoutError,
-  EventBusWaitWorkerInitedTimeoutError,
+  EventBusTimeoutError,
   EventBusWorkerPostError,
 } from './error';
 
 const DEFAULT_LISTENER_KEY = '_default_';
+
+export async function createWaitHandler(
+  checkHandler: () => boolean,
+  options: WaitCheckOptions = {}
+) {
+  await new Promise<boolean>((resolve, reject) => {
+    const timeoutHandler = setTimeout(() => {
+      clearInterval(handler);
+      clearTimeout(timeoutHandler);
+      reject(new EventBusTimeoutError());
+    }, options.timeout || 5000);
+
+    const handler = setInterval(() => {
+      if (checkHandler()) {
+        clearInterval(handler);
+        clearTimeout(timeoutHandler);
+        resolve(true);
+      }
+    }, options.timeoutCheckInterval || 500);
+  });
+}
 
 export abstract class AbstractEventBus<T> implements IEventBus<T> {
   private isInited = false;
@@ -90,20 +112,9 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   public async start() {
     this.isInited = true;
     if (this.isMain()) {
-      await new Promise<boolean>((resolve, reject) => {
-        const timeoutHandler = setTimeout(() => {
-          clearInterval(handler);
-          clearTimeout(timeoutHandler);
-          reject(new EventBusWaitWorkerInitedTimeoutError());
-        }, this.options.initTimeout || 5000);
-
-        const handler = setInterval(() => {
-          if (this.isAllWorkerReady()) {
-            clearInterval(handler);
-            clearTimeout(timeoutHandler);
-            resolve(true);
-          }
-        }, 200);
+      await createWaitHandler(() => this.isAllWorkerReady(), {
+        timeout: this.options.initTimeout,
+        timeoutCheckInterval: this.options.initTimeoutCheckInterval,
       });
     } else {
       // listen main => worker in worker

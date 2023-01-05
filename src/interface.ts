@@ -1,9 +1,3 @@
-export const EVENT_MSG_INITED = 'message_inited';
-export const EVENT_MSG_REQUEST = 'message_request';
-export const EVENT_MSG_RESPONSE = 'message_response';
-export const EVENT_MSG_INVOKE = 'message_invoke';
-export const EVENT_MSG_BROADCAST = 'message_broadcast';
-
 export enum MessageType {
   /**
    * worker => main
@@ -50,7 +44,19 @@ export type EventCenterMessage = {
 
 export interface EventBusOptions {
   initTimeout?: number;
+  initTimeoutCheckInterval?: number;
   isWorker?: boolean;
+}
+
+export interface LocalEventBusOptions extends EventBusOptions {
+  waitWorkerTimeout?: number;
+  waitWorkerCheckInterval?: number;
+}
+
+export interface WaitCheckOptions {
+  timeout?: number;
+  timeoutCheckInterval?: number;
+  ErrorClz?: new (...args) => Error;
 }
 
 export interface PublishOptions {
