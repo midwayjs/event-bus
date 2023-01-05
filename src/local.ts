@@ -1,5 +1,5 @@
-import { AbstractEventBus } from './base';
-import { EventBusOptions, Message } from './interface';
+import { AbstractEventBus, createWaitHandler } from './base';
+import { LocalEventBusOptions, Message } from './interface';
 
 class LocalDispatcher {
   private pidIdx = 0;
@@ -39,8 +39,9 @@ class LocalWorker {
 
 export class LocalEventBus extends AbstractEventBus<LocalWorker> {
   private worker: LocalWorker = new LocalWorker(dispatcher.generatePid());
+  protected options: LocalEventBusOptions;
 
-  constructor(options: EventBusOptions = {}) {
+  constructor(options: LocalEventBusOptions = {}) {
     super(options);
     if (this.isMain()) {
       this.debugLogger(`Main id=${this.worker.getWorkerId()}`);
@@ -94,6 +95,10 @@ export class LocalEventBus extends AbstractEventBus<LocalWorker> {
 
   async start() {
     if (this.isMain()) {
+      await createWaitHandler(() => dispatcher.childWorker != null, {
+        timeout: this.options.waitWorkerTimeout,
+        timeoutCheckInterval: this.options.waitWorkerCheckInterval || 200,
+      });
       this.addWorker(dispatcher.childWorker);
     }
     await super.start();

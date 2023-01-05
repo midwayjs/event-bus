@@ -7,10 +7,10 @@ export class EventBusPublishTimeoutError extends Error {
   }
 }
 
-export class EventBusWaitWorkerInitedTimeoutError extends Error {
+export class EventBusTimeoutError extends Error {
   constructor() {
-    super('Some worker inited timeout and throw this error.');
-    this.name = 'EventBusWaitWorkerInitedTimeoutError';
+    super('Waiting for ready timeout throws this error.');
+    this.name = 'EventBusTimeoutError';
   }
 }
 
