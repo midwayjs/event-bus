@@ -5,6 +5,7 @@ class LocalDispatcher {
   private pidIdx = 0;
   mainWorker: LocalWorker;
   childWorker: LocalWorker;
+  initMessageQueue = [];
   clear() {
     this.mainWorker = null;
     this.childWorker = null;
@@ -57,8 +58,6 @@ export class LocalEventBus extends AbstractEventBus<LocalWorker> {
   ) {
     if (this.isWorker()) {
       dispatcher.childWorker.onMessage(subscribeMessageHandler);
-    } else {
-      dispatcher.mainWorker.onMessage(subscribeMessageHandler);
     }
   }
 
@@ -66,19 +65,33 @@ export class LocalEventBus extends AbstractEventBus<LocalWorker> {
     worker: any,
     subscribeMessageHandler: (message: Message) => void
   ) {
-    if (this.isWorker()) {
-      dispatcher.childWorker.onMessage(subscribeMessageHandler);
-    } else {
+    if (this.isMain()) {
       dispatcher.mainWorker.onMessage(subscribeMessageHandler);
     }
   }
 
   protected workerSendMessage(message: Message) {
-    dispatcher.mainWorker.handler(message);
+    // worker to main
+    if (dispatcher.mainWorker.handler) {
+      dispatcher.mainWorker.handler(message);
+    } else {
+      dispatcher.initMessageQueue.push({
+        to: 'main',
+        message,
+      });
+    }
   }
 
   protected mainSendMessage(worker: any, message: Message) {
-    dispatcher.childWorker.handler(message);
+    // main to worker
+    if (dispatcher.childWorker.handler) {
+      dispatcher.childWorker.handler(message);
+    } else {
+      dispatcher.initMessageQueue.push({
+        to: 'worker',
+        message,
+      });
+    }
   }
 
   getWorkerId(worker?: any): string {
@@ -100,6 +113,16 @@ export class LocalEventBus extends AbstractEventBus<LocalWorker> {
         timeoutCheckInterval: this.options.waitWorkerCheckInterval || 200,
       });
       this.addWorker(dispatcher.childWorker);
+      if (dispatcher.initMessageQueue.length) {
+        dispatcher.initMessageQueue.forEach(({ to, message }) => {
+          if (to === 'worker') {
+            this.mainSendMessage(dispatcher.childWorker, message);
+          } else {
+            this.workerSendMessage(message);
+          }
+        });
+        dispatcher.initMessageQueue = [];
+      }
     }
     await super.start();
   }

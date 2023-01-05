@@ -1,5 +1,4 @@
 import { LocalEventBus } from '../../src/index';
-import { sleep } from '../util';
 
 export async function createWorker() {
   const bus = new LocalEventBus({
@@ -17,7 +16,6 @@ export async function createWorker() {
     topic: 'target',
   });
 
-  await sleep();
   await bus.start();
 }
 
