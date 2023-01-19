@@ -9,7 +9,7 @@ async function createWorker() {
   bus.subscribe((message, callback) => {
     console.log(message);
 
-    callback && callback.sendData({
+    callback && callback.send({
       data: 'hello world'
     });
   });

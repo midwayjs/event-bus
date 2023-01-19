@@ -29,6 +29,14 @@ import {
 const DEFAULT_LISTENER_KEY = '_default_';
 const END_FLAG = '\n\n';
 
+function revertError(errorObj: any) {
+  const error = new Error();
+  error.name = errorObj.name;
+  error.message = errorObj.message;
+  error.stack = errorObj.stack;
+  return error;
+}
+
 export async function createWaitHandler(
   checkHandler: () => boolean,
   options: WaitCheckOptions = {}
@@ -310,7 +318,9 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
             // publish error
             this.publish(err, {
               relatedMessageId: originMessage.messageId,
+              isChunk: originMessage.type === MessageType.Invoke_Chunk,
             });
+            responder.end();
           });
 
           this.listener?.(originMessage, responder);
@@ -352,8 +362,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
               }
 
               asyncResolve(
+                originMessage.error
+                  ? revertError(originMessage.error)
+                  : undefined,
                 originMessage.body,
-                isChunk ? originMessage.body === END_FLAG : false
+                isChunk ? originMessage.body === END_FLAG : true
               );
             } else {
               // not found and ignore
@@ -416,6 +429,8 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           type: this.isMain() ? MessageType.Request : MessageType.Response,
           body: undefined,
           error: {
+            name: data.name,
+            message: data.message,
             stack: data.stack,
           },
           messageOptions: publishOptions,
@@ -445,17 +460,6 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         publishOptions.relatedMessageId || this.generateMessageId();
 
       this.useTimeout(messageId, publishOptions.timeout, resolve, reject);
-
-      const handler = setTimeout(() => {
-        clearTimeout(handler);
-        this.asyncMessageMap.delete(messageId);
-        reject(new EventBusPublishTimeoutError(messageId));
-      }, publishOptions.timeout || 5000);
-
-      this.asyncMessageMap.set(messageId, data => {
-        clearTimeout(handler);
-        resolve(data);
-      });
 
       this.transit({
         messageCategory: MessageCategory.OUT,
@@ -489,7 +493,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         }
       },
       err => {
-        collector.getErrorHandler?.()(err);
+        if (collector.getErrorHandler()) {
+          collector.getErrorHandler()(err);
+        } else {
+          console.error(err);
+        }
       }
     );
 
@@ -518,11 +526,17 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       clearTimeout(handler);
       this.asyncMessageMap.delete(messageId);
       errorHandler(new EventBusPublishTimeoutError(messageId));
-    }, timeout || 5000);
+    }, timeout);
 
-    this.asyncMessageMap.set(messageId, (data, isEnd) => {
-      clearTimeout(handler);
-      successHandler(data, isEnd);
+    this.asyncMessageMap.set(messageId, (err, data, isEnd) => {
+      if (isEnd) {
+        clearTimeout(handler);
+      }
+      if (err) {
+        errorHandler(err);
+      } else {
+        successHandler(data, isEnd);
+      }
     });
   }
 

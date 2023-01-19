@@ -34,7 +34,11 @@ export type Message<BODY = any> = {
   messageId: string;
   workerId: string;
   type: MessageType;
-  error?: { stack: string };
+  error?: {
+    name: string;
+    message: string;
+    stack: string;
+  };
   body: BODY;
   messageOptions?: PublishOptions | BroadcastOptions;
 };
