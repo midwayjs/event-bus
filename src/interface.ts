@@ -11,7 +11,9 @@ export enum MessageType {
    * worker => main
    */
   Response = 'response',
+  Response_Chunk = 'response_chunk',
   Invoke = 'invoke',
+  Invoke_Chunk = 'invoke_chunk',
   Broadcast = 'broadcast',
 }
 
@@ -60,10 +62,15 @@ export interface WaitCheckOptions {
 }
 
 export interface PublishOptions {
-  timeout?: number;
   relatedMessageId?: string;
   targetWorkerId?: string;
   topic?: string;
+  isChunk?: boolean;
+}
+
+export interface PublishAsyncOptions extends PublishOptions {
+  timeout?: number;
+  multiResult?: boolean;
 }
 
 export interface BroadcastOptions {
@@ -87,7 +94,7 @@ export interface SubscribeOptions {
 
 export type SubscribeTopicListener = (
   message: Message,
-  callback?: (data: any) => void
+  responder?: IResponder
 ) => void;
 
 export interface IEventBus<T> {
@@ -109,4 +116,16 @@ export interface IEventBus<T> {
   onPublish(listener: (message: Message) => void);
   onSubscribe(listener: (message: Message) => void);
   onError(listener: (err: Error) => void);
+}
+
+export interface IDataCollector {
+  onData(dataHandler: (data: unknown) => void);
+  onEnd(endHandler: () => void);
+  onError(errorHandler: (err: Error) => void);
+}
+
+export interface IResponder {
+  end(data?: unknown): void;
+  send(data: unknown): void;
+  error(err: Error): void;
 }

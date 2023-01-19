@@ -31,7 +31,7 @@ describe('/test/cp.test.ts', function () {
 
   it('test publish with async', async () => {
     const bus = new ChildProcessEventBus();
-    const worker = createChildProcessWorker(join(__dirname, 'cp/publishAsync.ts'));
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async.ts'));
     bus.addWorker(worker);
     await bus.start();
 
@@ -42,6 +42,32 @@ describe('/test/cp.test.ts', function () {
     });
 
     expect(result).toEqual({ data: 'hello world' });
+
+    await worker.kill();
+    await bus.stop();
+  });
+
+  it('test publish async with timeout error', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async_timeout.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    let error;
+    try {
+      await bus.publishAsync({
+        data: {
+          name: 'test',
+        },
+      }, {
+        timeout: 1000,
+      });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.message).toMatch('timeout');
 
     await worker.kill();
     await bus.stop();

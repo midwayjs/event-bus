@@ -35,7 +35,7 @@ describe('/test/local.test.ts', function () {
     const bus = new LocalEventBus({
       isWorker: false,
     });
-    createLocalWorker(join(__dirname, 'local/publishAsync.ts'));
+    createLocalWorker(join(__dirname, 'local/publish_async.ts'));
     await bus.start();
 
     const result = await bus.publishAsync({
@@ -45,6 +45,32 @@ describe('/test/local.test.ts', function () {
     });
 
     expect(result).toEqual({ data: 'hello world' });
+
+    await bus.stop();
+  });
+
+  it('test publish async with timeout error', async () => {
+    const bus = new LocalEventBus({
+      isWorker: false,
+    });
+    createLocalWorker(join(__dirname, 'local/publish_async_timeout.ts'));
+    await bus.start();
+
+    let error;
+    try {
+      await bus.publishAsync({
+        data: {
+          name: 'test',
+        },
+      }, {
+        timeout: 1000,
+      });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.message).toMatch('timeout');
 
     await bus.stop();
   });

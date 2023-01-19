@@ -32,7 +32,7 @@ describe('/test/thread.test.ts', function () {
 
   it('test publish with async', async () => {
     const bus = new ThreadEventBus();
-    const worker = createThreadWorker(join(__dirname, 'worker/publishAsync.ts'));
+    const worker = createThreadWorker(join(__dirname, 'worker/publish_async.ts'));
     bus.addWorker(worker);
     await bus.start();
 
@@ -43,6 +43,32 @@ describe('/test/thread.test.ts', function () {
     });
 
     expect(result).toEqual({ data: 'hello world' });
+
+    await worker.terminate();
+    await bus.stop();
+  });
+
+  it('test publish async with timeout error', async () => {
+    const bus = new ThreadEventBus();
+    const worker = createThreadWorker(join(__dirname, 'worker/publish_async_timeout.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    let error;
+    try {
+      await bus.publishAsync({
+        data: {
+          name: 'test',
+        },
+      }, {
+        timeout: 1000,
+      });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.message).toMatch('timeout');
 
     await worker.terminate();
     await bus.stop();
@@ -217,6 +243,34 @@ describe('/test/thread.test.ts', function () {
     await worker1.terminate();
     await worker2.terminate();
     await worker3.terminate();
+    await bus.stop();
+  });
+
+  it('test publish chunk and run end', async () => {
+    const bus = new ThreadEventBus();
+    const worker = createThreadWorker(join(__dirname, 'worker/publish_chunk.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const collector = await bus.publishChunk({
+      data: {
+        name: 'test',
+      }
+    });
+
+    const result = await new Promise((resolve, reject) => {
+      let result = [];
+      collector.onData(data => {
+        result.push(data);
+      });
+      collector.onEnd(() => {
+        resolve(result.join(''));
+      });
+    });
+
+    expect(result).toEqual('hello world');
+
+    await worker.terminate();
     await bus.stop();
   });
 });

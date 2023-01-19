@@ -8,10 +8,6 @@ async function createWorker() {
 
   bus.subscribe((message, callback) => {
     console.log(message);
-
-    callback && callback({
-      data: 'hello world'
-    });
   });
 
   await sleep();
