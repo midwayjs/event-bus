@@ -11,9 +11,10 @@ export enum MessageType {
    * worker => main
    */
   Response = 'response',
-  Response_Chunk = 'response_chunk',
+  /**
+   * publish async: main => worker
+   */
   Invoke = 'invoke',
-  Invoke_Chunk = 'invoke_chunk',
   Broadcast = 'broadcast',
 }
 

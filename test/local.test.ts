@@ -222,4 +222,137 @@ describe('/test/local.test.ts', function () {
     })
     await bus.stop();
   });
+
+  describe('test chunk', function () {
+    it('test publish chunk and run end', async () => {
+      const bus = new LocalEventBus({
+        isWorker: false,
+      });
+      createLocalWorker(join(__dirname, 'local/publish_chunk.ts'));
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        }
+      });
+
+      const result = await new Promise((resolve, reject) => {
+        let result = [];
+        collector.onData(data => {
+          result.push(data);
+        });
+        collector.onEnd(() => {
+          resolve(result.join(''));
+        });
+      });
+
+      expect(result).toEqual('hello world');
+
+      await bus.stop();
+    });
+
+    it('test publish chunk and run end with data', async () => {
+      const bus = new LocalEventBus({
+        isWorker: false,
+      });
+      createLocalWorker(join(__dirname, 'local/publish_chunk_end_data.ts'));
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        }
+      });
+
+      const result = await new Promise((resolve, reject) => {
+        let result = [];
+        collector.onData(data => {
+          result.push(data);
+        });
+        collector.onEnd(() => {
+          resolve(result.join(''));
+        });
+      });
+
+      expect(result).toEqual('hello world');
+
+      await bus.stop();
+    });
+
+    it('test publish chunk timeout', async () => {
+      const bus = new LocalEventBus({
+        isWorker: false,
+      });
+      createLocalWorker(join(__dirname, 'local/publish_chunk_timeout.ts'));
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        },
+      }, {
+        timeout: 1000
+      });
+
+      let error;
+      try {
+        await new Promise((resolve, reject) => {
+          let result = [];
+          collector.onData(data => {
+            result.push(data);
+          });
+          collector.onEnd(() => {
+            resolve(result.join(''));
+          });
+
+          collector.onError(reject);
+        });
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.message).toMatch('timeout');
+
+      await bus.stop();
+    });
+
+    it('test publish chunk and worker throw error', async () => {
+      const bus = new LocalEventBus({
+        isWorker: false,
+      });
+      createLocalWorker(join(__dirname, 'local/publish_chunk_worker_error.ts'));
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        },
+      });
+
+      let error;
+      try {
+        await new Promise((resolve, reject) => {
+          let result = [];
+          collector.onData(data => {
+            result.push(data);
+          });
+          collector.onEnd(() => {
+            resolve(result.join(''));
+          });
+
+          collector.onError(reject);
+        });
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.name).toEqual('CustomError');
+      expect(error.message).toMatch('custom error');
+
+      await bus.stop();
+    });
+  });
 });

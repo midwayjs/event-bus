@@ -165,6 +165,8 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           }
           listener(message, responder);
         }
+      } else {
+        console.warn(`No listener found, message = ${JSON.stringify(message)}`);
       }
     };
 
@@ -285,9 +287,10 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         // out operation
         if (
           originMessage.type === MessageType.Invoke ||
-          originMessage.type === MessageType.Invoke_Chunk ||
+          // originMessage.type === MessageType.Invoke_Chunk ||
           originMessage.type === MessageType.Request ||
           originMessage.type === MessageType.Response ||
+          // originMessage.type === MessageType.Response_Chunk ||
           originMessage.type === MessageType.Broadcast
         ) {
           this.postMessage(originMessage);
@@ -299,16 +302,18 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       } else if (message.messageCategory === MessageCategory.IN) {
         // in operation
         if (
-          originMessage.type === MessageType.Invoke ||
-          originMessage.type === MessageType.Invoke_Chunk
+          originMessage.type === MessageType.Invoke
+          // || originMessage.type === MessageType.Invoke_Chunk
         ) {
+          const isChunk = originMessage.messageOptions?.['isChunk'] === true;
           const responder = new AckResponder();
           responder.onData(data => {
             this.publish(data, {
               relatedMessageId: originMessage.messageId,
-              isChunk: originMessage.type === MessageType.Invoke_Chunk,
+              isChunk,
             });
-            if (originMessage.type === MessageType.Invoke) {
+
+            if (!isChunk) {
               // auto run end in normal invoke mode
               responder.end();
             }
@@ -318,7 +323,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
             // publish error
             this.publish(err, {
               relatedMessageId: originMessage.messageId,
-              isChunk: originMessage.type === MessageType.Invoke_Chunk,
+              isChunk,
             });
             responder.end();
           });
@@ -347,7 +352,10 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
             this.listener?.(originMessage);
             this.eventListenerMap.get(ListenerType.Subscribe)?.(originMessage);
           }
-        } else if (originMessage.type === MessageType.Response) {
+        } else if (
+          originMessage.type === MessageType.Response
+          // || originMessage.type === MessageType.Response_Chunk
+        ) {
           if (originMessage.messageOptions?.relatedMessageId) {
             // worker => main with invoke
             const asyncResolve = this.asyncMessageMap.get(
@@ -506,10 +514,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       message: {
         messageId,
         workerId: this.getWorkerId(),
-        type: this.isMain()
-          ? MessageType.Invoke_Chunk
-          : MessageType.Response_Chunk,
+        type: this.isMain() ? MessageType.Invoke : MessageType.Response,
         body: data,
+        messageOptions: {
+          isChunk: true,
+        },
       },
     });
 
