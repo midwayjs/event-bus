@@ -209,7 +209,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     }
   }
 
-  public async start() {
+  public async start(err?: Error) {
     this.isInited = true;
     if (this.isMain()) {
       await createWaitHandler(() => this.isAllWorkerReady(), {
@@ -232,6 +232,13 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           workerId: this.getWorkerId(),
           type: MessageType.Inited,
           body: this.isInited,
+          error: err
+            ? {
+                name: err.name,
+                message: err.message,
+                stack: err.stack,
+              }
+            : undefined,
         },
       });
     }
@@ -403,10 +410,19 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         } else if (originMessage.type === MessageType.Inited) {
           if (this.isMain()) {
             // trigger in worker
-            this.eventListenerMap.get(ListenerType.Inited)?.(originMessage);
-            // got init status from worker
-            this.workerReady.get(originMessage.workerId).ready = true;
-            this.debugLogger(`got worker ${originMessage.workerId} ready`);
+            if (originMessage.error) {
+              this.debugLogger(
+                `got worker ${originMessage.workerId} ready failed`
+              );
+              this.eventListenerMap.get(ListenerType.Error)(
+                revertError(originMessage.error)
+              );
+            } else {
+              this.eventListenerMap.get(ListenerType.Inited)?.(originMessage);
+              // got init status from worker
+              this.workerReady.get(originMessage.workerId).ready = true;
+              this.debugLogger(`got worker ${originMessage.workerId} ready`);
+            }
           } else {
             // ignore
           }

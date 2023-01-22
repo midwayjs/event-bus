@@ -106,7 +106,7 @@ export class LocalEventBus extends AbstractEventBus<LocalWorker> {
     return this.options.isWorker;
   }
 
-  async start() {
+  async start(err?: Error) {
     if (this.isMain()) {
       await createWaitHandler(() => dispatcher.childWorker != null, {
         timeout: this.options.waitWorkerTimeout,
@@ -124,7 +124,7 @@ export class LocalEventBus extends AbstractEventBus<LocalWorker> {
         dispatcher.initMessageQueue = [];
       }
     }
-    await super.start();
+    await super.start(err);
   }
 
   async stop() {

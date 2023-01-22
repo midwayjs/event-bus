@@ -95,6 +95,31 @@ await bus.start();
 
 ## API
 
+**start**
+
+bus 启动后，需要调用此方法，才能正常使用。
+
+main 调用后会等待 worker 启动，worker 调用后会向 main 发送消息。
+
+```ts
+// in main & worker
+await bus.start();
+```
+
+如果 worker 启动错误，可以传递异常给 main。
+
+```ts
+// worker
+await bus.start(new Error('worker error'));
+
+// main
+bus.onError(error => {
+  console.log(error.message);
+  // => 'worker error'
+});
+```
+
+
 **Publish & Subscribe**
 
 异步的发送和监听消息，支持 main 和 worker 双向发送， API 一致。

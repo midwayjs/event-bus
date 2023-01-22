@@ -3,6 +3,28 @@ import { createChildProcessWorker } from './util';
 import { ChildProcessEventBus } from '../src';
 
 describe('/test/cp.test.ts', function () {
+
+  it('test init error', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/init_error.ts'));
+    bus.addWorker(worker);
+
+    const error = await new Promise<Error>((resolve, reject) => {
+      bus.onError(err => {
+        resolve(err);
+      });
+
+      bus.start();
+    });
+
+    expect(error).toBeDefined();
+    expect(error.name).toEqual('CustomError');
+    expect(error.message).toMatch('custom error');
+
+    await worker.kill();
+    await bus.stop();
+  });
+
   it('test base thread publish and subscribe', async () => {
     const bus = new ChildProcessEventBus();
     const worker = createChildProcessWorker(join(__dirname, 'cp/base.ts'));

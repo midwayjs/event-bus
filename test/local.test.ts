@@ -4,6 +4,24 @@ import { LocalEventBus } from '../src';
 
 describe('/test/local.test.ts', function () {
 
+  it('test init error', async () => {
+    const bus = new LocalEventBus();
+    createLocalWorker(join(__dirname, 'local/init_error.ts'));
+    const error = await new Promise<Error>((resolve, reject) => {
+      bus.onError(err => {
+        resolve(err);
+      });
+
+      bus.start();
+    });
+
+    expect(error).toBeDefined();
+    expect(error.name).toEqual('CustomError');
+    expect(error.message).toMatch('custom error');
+
+    await bus.stop();
+  });
+
   it('test base publish and subscribe', async () => {
     const bus = new LocalEventBus({
       isWorker: false,
