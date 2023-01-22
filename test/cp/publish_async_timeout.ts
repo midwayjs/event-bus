@@ -1,7 +1,9 @@
 import { ChildProcessEventBus } from '../../src/index';
 
 async function createWorker() {
-  const bus = new ChildProcessEventBus();
+  const bus = new ChildProcessEventBus({
+    isWorker: true,
+  });
 
   bus.subscribe((message, callback) => {
     console.log(message);

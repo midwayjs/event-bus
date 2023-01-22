@@ -6,16 +6,13 @@ async function createWorker() {
   });
 
   bus.subscribe((message, callback) => {
-    console.log(message);
-
-    callback && callback.send({
-      data: 'hello world'
-    });
+    const err = new Error('custom error');
+    err.name = 'CustomError';
+    throw err;
   });
 
   await bus.start();
 }
-
 createWorker().then(() => {
   console.log('ready');
 });

@@ -1,7 +1,9 @@
 import { ThreadEventBus } from '../../src/index';
 
 async function createWorker() {
-  const bus = new ThreadEventBus();
+  const bus = new ThreadEventBus({
+    isWorker: true,
+  });
 
   bus.subscribe((message, responder) => {
     if (responder) {

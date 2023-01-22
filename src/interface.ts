@@ -100,7 +100,7 @@ export interface SubscribeOptions {
 export type SubscribeTopicListener = (
   message: Message,
   responder?: IResponder
-) => void;
+) => void | Promise<void>;
 
 export interface IEventBus<T> {
   addWorker(worker: T);

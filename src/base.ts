@@ -163,7 +163,20 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           if (listener['_subscribeOnce']) {
             listeners.delete(listener);
           }
-          listener(message, responder);
+          // eslint-disable-next-line no-async-promise-executor
+          new Promise(async (resolve, reject) => {
+            try {
+              await resolve(listener(message, responder));
+            } catch (e) {
+              reject(e);
+            }
+          }).catch(err => {
+            if (responder) {
+              responder.error(err);
+            } else {
+              this.eventListenerMap.get(ListenerType.Error)(err);
+            }
+          });
         }
       } else {
         console.warn(`No listener found, message = ${JSON.stringify(message)}`);
@@ -267,7 +280,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         return false;
       }
     }
-    this.debugLogger(`All worker(size=${this.workerReady.size}) is ready.`);
+
+    if (this.workerReady.size > 0) {
+      this.debugLogger(`All worker(size=${this.workerReady.size}) is ready.`);
+    }
+
     return true;
   }
 

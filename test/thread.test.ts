@@ -48,6 +48,31 @@ describe('/test/thread.test.ts', function () {
     await bus.stop();
   });
 
+  it('test publish with async and throw error', async () => {
+    const bus = new ThreadEventBus();
+    const worker = createThreadWorker(join(__dirname, 'worker/publish_async_error.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    let error;
+    try {
+      await bus.publishAsync({
+        data: {
+          name: 'test',
+        }
+      });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.name).toEqual('CustomError');
+    expect(error.message).toMatch('custom error');
+
+    await worker.terminate();
+    await bus.stop();
+  });
+
   it('test publish async with timeout error', async () => {
     const bus = new ThreadEventBus();
     const worker = createThreadWorker(join(__dirname, 'worker/publish_async_timeout.ts'));

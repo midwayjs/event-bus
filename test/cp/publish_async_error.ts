@@ -1,21 +1,18 @@
-import { ThreadEventBus } from '../../src/index';
+import { ChildProcessEventBus } from '../../src/index';
 
 async function createWorker() {
-  const bus = new ThreadEventBus({
+  const bus = new ChildProcessEventBus({
     isWorker: true,
   });
 
   bus.subscribe((message, callback) => {
-    console.log(message);
-
-    callback && callback.send({
-      data: 'hello world'
-    });
+    const err = new Error('custom error');
+    err.name = 'CustomError';
+    throw err;
   });
 
   await bus.start();
 }
-
 createWorker().then(() => {
   console.log('ready');
 });
