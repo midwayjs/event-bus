@@ -5,15 +5,13 @@ async function createWorker() {
     isWorker: true,
   });
 
-  bus.subscribe(message=>{
-    console.log(message);
-
-    bus.publish({
-      data: 'hello world'
-    });
-  },
-  {
-    topic: 'target',
+  bus.subscribe((message, responder) => {
+    if (responder) {
+      responder.send('hello');
+      const err = new Error('custom error');
+      err.name = 'CustomError';
+      responder.error(err);
+    }
   });
 
   await bus.start();

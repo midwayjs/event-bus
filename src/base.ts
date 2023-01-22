@@ -4,11 +4,14 @@ import {
   BroadcastOptions,
   EventBusOptions,
   EventCenterMessage,
+  IDataCollector,
   IEventBus,
+  IResponder,
   ListenerType,
   Message,
   MessageCategory,
   MessageType,
+  PublishAsyncOptions,
   PublishOptions,
   SubscribeOptions,
   SubscribeTopicListener,
@@ -24,6 +27,15 @@ import {
 } from './error';
 
 const DEFAULT_LISTENER_KEY = '_default_';
+const END_FLAG = '\n\n';
+
+function revertError(errorObj: any) {
+  const error = new Error();
+  error.name = errorObj.name;
+  error.message = errorObj.message;
+  error.stack = errorObj.stack;
+  return error;
+}
 
 export async function createWaitHandler(
   checkHandler: () => boolean,
@@ -44,6 +56,79 @@ export async function createWaitHandler(
       }
     }, options.timeoutCheckInterval || 500);
   });
+}
+
+export class ChunkCollector implements IDataCollector {
+  private dataHandler: (data: unknown) => void;
+  private errorHandler: (err: Error) => void;
+  private endHandler: () => void;
+
+  getDataHandler() {
+    return this.dataHandler;
+  }
+
+  getErrorHandler() {
+    return this.errorHandler;
+  }
+
+  getEndHandler() {
+    return this.endHandler;
+  }
+
+  public onData(dataHandler: (data: unknown) => void) {
+    this.dataHandler = dataHandler;
+  }
+
+  public onEnd(endHandler: () => void) {
+    this.endHandler = endHandler;
+  }
+
+  public onError(errorHandler: (err: Error) => void) {
+    this.errorHandler = errorHandler;
+  }
+}
+
+export class AckResponder implements IResponder {
+  private isEnd = false;
+  private dataHandler: (data: unknown) => void;
+  private errorHandler: (err: Error) => void;
+  public onData(dataHandler: (data: unknown) => void) {
+    this.dataHandler = dataHandler;
+  }
+
+  public onError(errorHandler: (err: Error) => void) {
+    this.errorHandler = errorHandler;
+  }
+
+  public end(data?: unknown) {
+    if (!this.isEnd) {
+      this.isEnd = true;
+      if (data) {
+        this.sendData(data);
+      }
+      this.sendData(END_FLAG);
+    }
+  }
+
+  protected sendData(data) {
+    if (this.dataHandler) {
+      this.dataHandler(data);
+    }
+  }
+
+  public send(data: unknown) {
+    if (!this.isEnd) {
+      this.sendData(data);
+    }
+  }
+
+  public error(err: Error) {
+    if (!this.isEnd) {
+      if (this.errorHandler) {
+        this.errorHandler(err);
+      }
+    }
+  }
 }
 
 export abstract class AbstractEventBus<T> implements IEventBus<T> {
@@ -68,7 +153,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       console.error(err);
     });
 
-    this.listener = (message, callback?) => {
+    this.listener = (message, responder?) => {
       const listeners = this.topicListener.get(
         message.messageOptions?.topic || DEFAULT_LISTENER_KEY
       );
@@ -78,8 +163,23 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           if (listener['_subscribeOnce']) {
             listeners.delete(listener);
           }
-          listener(message, callback);
+          // eslint-disable-next-line no-async-promise-executor
+          new Promise(async (resolve, reject) => {
+            try {
+              await resolve(listener(message, responder));
+            } catch (e) {
+              reject(e);
+            }
+          }).catch(err => {
+            if (responder) {
+              responder.error(err);
+            } else {
+              this.eventListenerMap.get(ListenerType.Error)(err);
+            }
+          });
         }
+      } else {
+        console.warn(`No listener found, message = ${JSON.stringify(message)}`);
       }
     };
 
@@ -109,7 +209,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     }
   }
 
-  public async start() {
+  public async start(err?: Error) {
     this.isInited = true;
     if (this.isMain()) {
       await createWaitHandler(() => this.isAllWorkerReady(), {
@@ -132,6 +232,13 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           workerId: this.getWorkerId(),
           type: MessageType.Inited,
           body: this.isInited,
+          error: err
+            ? {
+                name: err.name,
+                message: err.message,
+                stack: err.stack,
+              }
+            : undefined,
         },
       });
     }
@@ -180,7 +287,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         return false;
       }
     }
-    this.debugLogger(`All worker(size=${this.workerReady.size}) is ready.`);
+
+    if (this.workerReady.size > 0) {
+      this.debugLogger(`All worker(size=${this.workerReady.size}) is ready.`);
+    }
+
     return true;
   }
 
@@ -200,8 +311,10 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         // out operation
         if (
           originMessage.type === MessageType.Invoke ||
+          // originMessage.type === MessageType.Invoke_Chunk ||
           originMessage.type === MessageType.Request ||
           originMessage.type === MessageType.Response ||
+          // originMessage.type === MessageType.Response_Chunk ||
           originMessage.type === MessageType.Broadcast
         ) {
           this.postMessage(originMessage);
@@ -212,12 +325,34 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         }
       } else if (message.messageCategory === MessageCategory.IN) {
         // in operation
-        if (originMessage.type === MessageType.Invoke) {
-          this.listener?.(originMessage, data => {
+        if (
+          originMessage.type === MessageType.Invoke
+          // || originMessage.type === MessageType.Invoke_Chunk
+        ) {
+          const isChunk = originMessage.messageOptions?.['isChunk'] === true;
+          const responder = new AckResponder();
+          responder.onData(data => {
             this.publish(data, {
               relatedMessageId: originMessage.messageId,
+              isChunk,
             });
+
+            if (!isChunk) {
+              // auto run end in normal invoke mode
+              responder.end();
+            }
           });
+
+          responder.onError(err => {
+            // publish error
+            this.publish(err, {
+              relatedMessageId: originMessage.messageId,
+              isChunk,
+            });
+            responder.end();
+          });
+
+          this.listener?.(originMessage, responder);
           this.eventListenerMap.get(ListenerType.Subscribe)?.(originMessage);
         } else if (originMessage.type === MessageType.Request) {
           this.listener?.(originMessage);
@@ -241,17 +376,30 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
             this.listener?.(originMessage);
             this.eventListenerMap.get(ListenerType.Subscribe)?.(originMessage);
           }
-        } else if (originMessage.type === MessageType.Response) {
+        } else if (
+          originMessage.type === MessageType.Response
+          // || originMessage.type === MessageType.Response_Chunk
+        ) {
           if (originMessage.messageOptions?.relatedMessageId) {
             // worker => main with invoke
             const asyncResolve = this.asyncMessageMap.get(
               originMessage.messageOptions.relatedMessageId
             );
+            const isChunk = originMessage.messageOptions['isChunk'] === true;
             if (asyncResolve) {
-              this.asyncMessageMap.delete(
-                originMessage.messageOptions.relatedMessageId
+              if (!isChunk || (isChunk && originMessage.body === END_FLAG)) {
+                this.asyncMessageMap.delete(
+                  originMessage.messageOptions.relatedMessageId
+                );
+              }
+
+              asyncResolve(
+                originMessage.error
+                  ? revertError(originMessage.error)
+                  : undefined,
+                originMessage.body,
+                isChunk ? originMessage.body === END_FLAG : true
               );
-              asyncResolve(originMessage.body);
             } else {
               // not found and ignore
             }
@@ -262,10 +410,19 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         } else if (originMessage.type === MessageType.Inited) {
           if (this.isMain()) {
             // trigger in worker
-            this.eventListenerMap.get(ListenerType.Inited)?.(originMessage);
-            // got init status from worker
-            this.workerReady.get(originMessage.workerId).ready = true;
-            this.debugLogger(`got worker ${originMessage.workerId} ready`);
+            if (originMessage.error) {
+              this.debugLogger(
+                `got worker ${originMessage.workerId} ready failed`
+              );
+              this.eventListenerMap.get(ListenerType.Error)(
+                revertError(originMessage.error)
+              );
+            } else {
+              this.eventListenerMap.get(ListenerType.Inited)?.(originMessage);
+              // got init status from worker
+              this.workerReady.get(originMessage.workerId).ready = true;
+              this.debugLogger(`got worker ${originMessage.workerId} ready`);
+            }
           } else {
             // ignore
           }
@@ -279,7 +436,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   }
 
   public subscribe(
-    listener: (message: Message, callback?: (data: any) => void) => void,
+    listener: SubscribeTopicListener,
     options: SubscribeOptions = {}
   ) {
     if (!this.topicListener.has(options.topic)) {
@@ -292,44 +449,58 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   }
 
   public subscribeOnce(
-    listener: (message: Message, callback?: (data: any) => void) => void,
+    listener: SubscribeTopicListener,
     options: SubscribeOptions = {}
   ) {
     options.subscribeOnce = true;
     this.subscribe(listener, options);
   }
 
-  public publish(data: unknown, publishOptions: PublishOptions = {}): void {
-    this.transit({
-      messageCategory: MessageCategory.OUT,
-      message: {
-        messageId: publishOptions.relatedMessageId || this.generateMessageId(),
-        workerId: this.getWorkerId(),
-        type: this.isMain() ? MessageType.Request : MessageType.Response,
-        body: data,
-        messageOptions: publishOptions,
-      },
-    });
+  public publish(
+    data: unknown | Error,
+    publishOptions: PublishOptions = {}
+  ): void {
+    if (data instanceof Error) {
+      this.transit({
+        messageCategory: MessageCategory.OUT,
+        message: {
+          messageId:
+            publishOptions.relatedMessageId || this.generateMessageId(),
+          workerId: this.getWorkerId(),
+          type: this.isMain() ? MessageType.Request : MessageType.Response,
+          body: undefined,
+          error: {
+            name: data.name,
+            message: data.message,
+            stack: data.stack,
+          },
+          messageOptions: publishOptions,
+        },
+      });
+    } else {
+      this.transit({
+        messageCategory: MessageCategory.OUT,
+        message: {
+          messageId:
+            publishOptions.relatedMessageId || this.generateMessageId(),
+          workerId: this.getWorkerId(),
+          type: this.isMain() ? MessageType.Request : MessageType.Response,
+          body: data,
+          messageOptions: publishOptions,
+        },
+      });
+    }
   }
 
   public publishAsync(
     data: unknown,
-    publishOptions: PublishOptions = {}
+    publishOptions: PublishAsyncOptions = {}
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       const messageId =
         publishOptions.relatedMessageId || this.generateMessageId();
 
-      const handler = setTimeout(() => {
-        clearTimeout(handler);
-        this.asyncMessageMap.delete(messageId);
-        reject(new EventBusPublishTimeoutError(messageId));
-      }, publishOptions.timeout || 5000);
-
-      this.asyncMessageMap.set(messageId, data => {
-        clearTimeout(handler);
-        resolve(data);
-      });
+      this.useTimeout(messageId, publishOptions.timeout, resolve, reject);
 
       this.transit({
         messageCategory: MessageCategory.OUT,
@@ -340,6 +511,74 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           body: data,
         },
       });
+    });
+  }
+
+  public publishChunk(
+    data: unknown,
+    publishOptions: PublishAsyncOptions = {}
+  ): IDataCollector {
+    const messageId =
+      publishOptions.relatedMessageId || this.generateMessageId();
+
+    const collector = new ChunkCollector();
+
+    this.useTimeout(
+      messageId,
+      publishOptions.timeout,
+      (data, isEnd) => {
+        if (isEnd) {
+          collector.getEndHandler?.()();
+        } else {
+          collector.getDataHandler?.()(data);
+        }
+      },
+      err => {
+        if (collector.getErrorHandler()) {
+          collector.getErrorHandler()(err);
+        } else {
+          console.error(err);
+        }
+      }
+    );
+
+    this.transit({
+      messageCategory: MessageCategory.OUT,
+      message: {
+        messageId,
+        workerId: this.getWorkerId(),
+        type: this.isMain() ? MessageType.Invoke : MessageType.Response,
+        body: data,
+        messageOptions: {
+          isChunk: true,
+        },
+      },
+    });
+
+    return collector;
+  }
+
+  protected useTimeout(
+    messageId,
+    timeout = 5000,
+    successHandler: (data: any, isEnd?: boolean) => void,
+    errorHandler: (error: Error) => void
+  ) {
+    const handler = setTimeout(() => {
+      clearTimeout(handler);
+      this.asyncMessageMap.delete(messageId);
+      errorHandler(new EventBusPublishTimeoutError(messageId));
+    }, timeout);
+
+    this.asyncMessageMap.set(messageId, (err, data, isEnd) => {
+      if (isEnd) {
+        clearTimeout(handler);
+      }
+      if (err) {
+        errorHandler(err);
+      } else {
+        successHandler(data, isEnd);
+      }
     });
   }
 

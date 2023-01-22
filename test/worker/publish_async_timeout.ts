@@ -5,15 +5,8 @@ async function createWorker() {
     isWorker: true,
   });
 
-  bus.subscribe(message=>{
+  bus.subscribe((message, callback) => {
     console.log(message);
-
-    bus.publish({
-      data: 'hello world'
-    });
-  },
-  {
-    topic: 'target',
   });
 
   await bus.start();

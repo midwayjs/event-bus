@@ -95,6 +95,31 @@ await bus.start();
 
 ## API
 
+**start**
+
+bus 启动后，需要调用此方法，才能正常使用。
+
+main 调用后会等待 worker 启动，worker 调用后会向 main 发送消息。
+
+```ts
+// in main & worker
+await bus.start();
+```
+
+如果 worker 启动错误，可以传递异常给 main。
+
+```ts
+// worker
+await bus.start(new Error('worker error'));
+
+// main
+bus.onError(error => {
+  console.log(error.message);
+  // => 'worker error'
+});
+```
+
+
 **Publish & Subscribe**
 
 异步的发送和监听消息，支持 main 和 worker 双向发送， API 一致。
@@ -127,20 +152,32 @@ bus.publish({
 
 ```
 
+publish 错误。
+
+```ts
+const err = new Error('test');
+bus.publish(err);
+```
+
 
 **publishAsync**
 
 同步的发送消息，会等待订阅方返回，包含超时参数，默认 5s。
 
+此 API 仅限于 main 向 worker 发送消息。
+
 ```ts
 
 // subscribe
-bus.subscribe((message, callback) => {
+bus.subscribe((message, responder) => {
   // message.body === {data: 'abc'}
 
-  callback && callback({
+  responder && responder.send({
     data: 'hello world',
   });
+
+  // send error
+  responder.error(new Error('test'));
 });
 
 // invoke
@@ -151,6 +188,39 @@ const result = await bus.publishAsync({
 });
 
 // result => {data: 'hello world'}
+
+```
+
+**publishChunk**
+
+发送消息，会等待订阅方返回多次，包含超时参数，默认 5s。
+
+此 API 仅限于 main 向 worker 发送消息。
+
+```ts
+
+// subscribe
+bus.subscribe((message, responder) => {
+  responder.send('hello');
+  responder.send(' world');
+  responder.end();
+});
+
+// invoke
+const dataCollector = bus.publishChunk({
+  data: 'abc'
+}, {
+  timeout: 5000,
+});
+
+let result = '';
+dataCollector.onData(data => {
+  result += data;
+});
+
+dataCollector.onEnd(() => {
+  // result => 'hello world'
+});
 
 ```
 

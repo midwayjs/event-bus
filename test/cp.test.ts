@@ -3,6 +3,28 @@ import { createChildProcessWorker } from './util';
 import { ChildProcessEventBus } from '../src';
 
 describe('/test/cp.test.ts', function () {
+
+  it('test init error', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/init_error.ts'));
+    bus.addWorker(worker);
+
+    const error = await new Promise<Error>((resolve, reject) => {
+      bus.onError(err => {
+        resolve(err);
+      });
+
+      bus.start();
+    });
+
+    expect(error).toBeDefined();
+    expect(error.name).toEqual('CustomError');
+    expect(error.message).toMatch('custom error');
+
+    await worker.kill();
+    await bus.stop();
+  });
+
   it('test base thread publish and subscribe', async () => {
     const bus = new ChildProcessEventBus();
     const worker = createChildProcessWorker(join(__dirname, 'cp/base.ts'));
@@ -31,7 +53,7 @@ describe('/test/cp.test.ts', function () {
 
   it('test publish with async', async () => {
     const bus = new ChildProcessEventBus();
-    const worker = createChildProcessWorker(join(__dirname, 'cp/publishAsync.ts'));
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async.ts'));
     bus.addWorker(worker);
     await bus.start();
 
@@ -42,6 +64,57 @@ describe('/test/cp.test.ts', function () {
     });
 
     expect(result).toEqual({ data: 'hello world' });
+
+    await worker.kill();
+    await bus.stop();
+  });
+
+  it('test publish with async and throw error', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async_error.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    let error;
+    try {
+      await bus.publishAsync({
+        data: {
+          name: 'test',
+        }
+      });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.name).toEqual('CustomError');
+    expect(error.message).toMatch('custom error');
+
+    await worker.kill();
+    await bus.stop();
+  });
+
+  it('test publish async with timeout error', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async_timeout.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    let error;
+    try {
+      await bus.publishAsync({
+        data: {
+          name: 'test',
+        },
+      }, {
+        timeout: 1000,
+      });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.message).toMatch('timeout');
 
     await worker.kill();
     await bus.stop();
@@ -217,5 +290,138 @@ describe('/test/cp.test.ts', function () {
     await worker2.kill();
     await worker3.kill();
     await bus.stop();
+  });
+
+  describe('test chunk', function () {
+    it('test publish chunk and run end', async () => {
+      const bus = new ChildProcessEventBus();
+      const worker = createChildProcessWorker(join(__dirname, 'cp/publish_chunk.ts'));
+      bus.addWorker(worker);
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        }
+      });
+
+      const result = await new Promise((resolve, reject) => {
+        let result = [];
+        collector.onData(data => {
+          result.push(data);
+        });
+        collector.onEnd(() => {
+          resolve(result.join(''));
+        });
+      });
+
+      expect(result).toEqual('hello world');
+
+      await worker.kill();
+      await bus.stop();
+    });
+
+    it('test publish chunk and run end with data', async () => {
+      const bus = new ChildProcessEventBus();
+      const worker = createChildProcessWorker(join(__dirname, 'cp/publish_chunk_end_data.ts'));
+      bus.addWorker(worker);
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        }
+      });
+
+      const result = await new Promise((resolve, reject) => {
+        let result = [];
+        collector.onData(data => {
+          result.push(data);
+        });
+        collector.onEnd(() => {
+          resolve(result.join(''));
+        });
+      });
+
+      expect(result).toEqual('hello world');
+
+      await worker.kill();
+      await bus.stop();
+    });
+
+    it('test publish chunk timeout', async () => {
+      const bus = new ChildProcessEventBus();
+      const worker = createChildProcessWorker(join(__dirname, 'cp/publish_chunk_timeout.ts'));
+      bus.addWorker(worker);
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        },
+      }, {
+        timeout: 1000
+      });
+
+      let error;
+      try {
+        await new Promise((resolve, reject) => {
+          let result = [];
+          collector.onData(data => {
+            result.push(data);
+          });
+          collector.onEnd(() => {
+            resolve(result.join(''));
+          });
+
+          collector.onError(reject);
+        });
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.message).toMatch('timeout');
+
+      await worker.kill();
+      await bus.stop();
+    });
+
+    it('test publish chunk and worker throw error', async () => {
+      const bus = new ChildProcessEventBus();
+      const worker = createChildProcessWorker(join(__dirname, 'cp/publish_chunk_worker_error.ts'));
+      bus.addWorker(worker);
+      await bus.start();
+
+      const collector = bus.publishChunk({
+        data: {
+          name: 'test',
+        },
+      });
+
+      let error;
+      try {
+        await new Promise((resolve, reject) => {
+          let result = [];
+          collector.onData(data => {
+            result.push(data);
+          });
+          collector.onEnd(() => {
+            resolve(result.join(''));
+          });
+
+          collector.onError(reject);
+        });
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.name).toEqual('CustomError');
+      expect(error.message).toMatch('custom error');
+
+      await worker.kill();
+      await bus.stop();
+    });
   });
 });

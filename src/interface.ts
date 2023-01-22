@@ -11,6 +11,9 @@ export enum MessageType {
    * worker => main
    */
   Response = 'response',
+  /**
+   * publish async: main => worker
+   */
   Invoke = 'invoke',
   Broadcast = 'broadcast',
 }
@@ -32,7 +35,11 @@ export type Message<BODY = any> = {
   messageId: string;
   workerId: string;
   type: MessageType;
-  error?: { stack: string };
+  error?: {
+    name: string;
+    message: string;
+    stack: string;
+  };
   body: BODY;
   messageOptions?: PublishOptions | BroadcastOptions;
 };
@@ -60,10 +67,15 @@ export interface WaitCheckOptions {
 }
 
 export interface PublishOptions {
-  timeout?: number;
   relatedMessageId?: string;
   targetWorkerId?: string;
   topic?: string;
+  isChunk?: boolean;
+}
+
+export interface PublishAsyncOptions extends PublishOptions {
+  timeout?: number;
+  multiResult?: boolean;
 }
 
 export interface BroadcastOptions {
@@ -87,12 +99,12 @@ export interface SubscribeOptions {
 
 export type SubscribeTopicListener = (
   message: Message,
-  callback?: (data: any) => void
-) => void;
+  responder?: IResponder
+) => void | Promise<void>;
 
 export interface IEventBus<T> {
   addWorker(worker: T);
-  start(): Promise<void>;
+  start(err?: Error): Promise<void>;
   subscribe(callback: (message: Message) => void, options?: SubscribeOptions);
   subscribeOnce(
     callback: (message: Message) => void,
@@ -109,4 +121,16 @@ export interface IEventBus<T> {
   onPublish(listener: (message: Message) => void);
   onSubscribe(listener: (message: Message) => void);
   onError(listener: (err: Error) => void);
+}
+
+export interface IDataCollector {
+  onData(dataHandler: (data: unknown) => void);
+  onEnd(endHandler: () => void);
+  onError(errorHandler: (err: Error) => void);
+}
+
+export interface IResponder {
+  end(data?: unknown): void;
+  send(data: unknown): void;
+  error(err: Error): void;
 }

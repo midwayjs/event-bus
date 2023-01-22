@@ -1,20 +1,18 @@
-import { LocalEventBus } from '../../src/index';
-import { sleep } from '../util';
+import { ChildProcessEventBus } from '../../src';
 
 async function createWorker() {
-  const bus = new LocalEventBus({
+  const bus = new ChildProcessEventBus({
     isWorker: true,
   });
 
   bus.subscribe((message, callback) => {
     console.log(message);
 
-    callback && callback({
+    callback && callback.send({
       data: 'hello world'
     });
   });
 
-  await sleep();
   await bus.start();
 }
 

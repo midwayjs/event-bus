@@ -5,18 +5,9 @@ async function createWorker() {
     isWorker: true,
   });
 
-  bus.subscribe(message=>{
-    console.log(message);
-
-    bus.publish({
-      data: 'hello world'
-    });
-  },
-  {
-    topic: 'target',
-  });
-
-  await bus.start();
+  const err = new Error('custom error');
+  err.name = 'CustomError';
+  await bus.start(err);
 }
 
 createWorker().then(() => {

@@ -1,21 +1,20 @@
-import { ThreadEventBus } from '../../src/index';
+import { LocalEventBus } from '../../src/index';
+import { sleep } from '../util';
 
 async function createWorker() {
-  const bus = new ThreadEventBus({
+  const bus = new LocalEventBus({
     isWorker: true,
   });
 
-  bus.subscribe(message=>{
+  bus.subscribe((message, callback) => {
     console.log(message);
 
-    bus.publish({
+    callback && callback.send({
       data: 'hello world'
     });
-  },
-  {
-    topic: 'target',
   });
 
+  await sleep();
   await bus.start();
 }
 
