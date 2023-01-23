@@ -105,11 +105,8 @@ export type SubscribeTopicListener = (
 export interface IEventBus<T> {
   addWorker(worker: T);
   start(err?: Error): Promise<void>;
-  subscribe(callback: (message: Message) => void, options?: SubscribeOptions);
-  subscribeOnce(
-    callback: (message: Message) => void,
-    options?: SubscribeOptions
-  );
+  subscribe(callback: SubscribeTopicListener, options?: SubscribeOptions);
+  subscribeOnce(callback: SubscribeTopicListener, options?: SubscribeOptions);
   publishAsync(data: unknown, publishOptions?: PublishOptions): Promise<any>;
   publish(data: unknown, publishOptions?: PublishOptions);
   broadcast(data: unknown, options?: BroadcastOptions);
