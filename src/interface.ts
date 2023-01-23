@@ -70,12 +70,8 @@ export interface PublishOptions {
   relatedMessageId?: string;
   targetWorkerId?: string;
   topic?: string;
-  isChunk?: boolean;
-}
-
-export interface PublishAsyncOptions extends PublishOptions {
   timeout?: number;
-  multiResult?: boolean;
+  isChunk?: boolean;
 }
 
 export interface BroadcastOptions {
@@ -105,11 +101,15 @@ export type SubscribeTopicListener = (
 export interface IEventBus<T> {
   addWorker(worker: T);
   start(err?: Error): Promise<void>;
-  subscribe(callback: SubscribeTopicListener, options?: SubscribeOptions);
-  subscribeOnce(callback: SubscribeTopicListener, options?: SubscribeOptions);
+  subscribe(callback: SubscribeTopicListener, options?: SubscribeOptions): void;
+  subscribeOnce(
+    callback: SubscribeTopicListener,
+    options?: SubscribeOptions
+  ): void;
   publishAsync(data: unknown, publishOptions?: PublishOptions): Promise<any>;
-  publish(data: unknown, publishOptions?: PublishOptions);
-  broadcast(data: unknown, options?: BroadcastOptions);
+  publishChunk(data: unknown, publishOptions?: PublishOptions): IDataCollector;
+  publish(data: unknown, publishOptions?: PublishOptions): void;
+  broadcast(data: unknown, options?: BroadcastOptions): void;
   isMain(): boolean;
   isWorker(): boolean;
   getWorkerId(worker: T): string;

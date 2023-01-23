@@ -11,7 +11,6 @@ import {
   Message,
   MessageCategory,
   MessageType,
-  PublishAsyncOptions,
   PublishOptions,
   SubscribeOptions,
   SubscribeTopicListener,
@@ -494,7 +493,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
 
   public publishAsync(
     data: unknown,
-    publishOptions: PublishAsyncOptions = {}
+    publishOptions: PublishOptions = {}
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       const messageId =
@@ -516,7 +515,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
 
   public publishChunk(
     data: unknown,
-    publishOptions: PublishAsyncOptions = {}
+    publishOptions: PublishOptions = {}
   ): IDataCollector {
     const messageId =
       publishOptions.relatedMessageId || this.generateMessageId();
