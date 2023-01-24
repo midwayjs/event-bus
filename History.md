@@ -1,4 +1,10 @@
 
+1.4.0 / 2023-01-24
+==================
+
+  * feat: use async iterator replace collector (#5)
+  * Release 1.3.2
+
 1.3.2 / 2023-01-23
 ==================
 
