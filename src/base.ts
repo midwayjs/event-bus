@@ -1,10 +1,9 @@
 // event bus
-import { EventEmitter } from 'events';
+import { EventEmitter, once } from 'events';
 import {
   BroadcastOptions,
   EventBusOptions,
   EventCenterMessage,
-  IDataCollector,
   IEventBus,
   IResponder,
   ListenerType,
@@ -57,33 +56,59 @@ export async function createWaitHandler(
   });
 }
 
-export class ChunkCollector implements IDataCollector {
-  private dataHandler: (data: unknown) => void;
-  private errorHandler: (err: Error) => void;
-  private endHandler: () => void;
-
-  getDataHandler() {
-    return this.dataHandler;
+class ChunkIterator<T> implements AsyncIterable<T> {
+  private emitter: EventEmitter;
+  private buffer = [];
+  private readyNext = false;
+  private intervalHandler;
+  constructor(protected readonly debugLogger) {
+    this.emitter = new EventEmitter();
+    this.intervalHandler = setInterval(() => {
+      this.debugLogger('this.readyNext', this.readyNext, this.buffer.length);
+      if (this.readyNext) {
+        const data = this.buffer.shift();
+        if (data) {
+          this.readyNext = false;
+          this.debugLogger('2 got data and emit iterator', data);
+          this.emitter.emit('data', data);
+        }
+      }
+    }, 100);
+  }
+  publish(data) {
+    this.buffer.push(data);
+  }
+  error(err) {
+    this.emitter.emit('error', err);
+    this.clear();
+  }
+  [Symbol.asyncIterator](): AsyncIterator<T> {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    return {
+      next(): Promise<IteratorResult<T>> {
+        self.debugLogger('1 ChunkIterator run next and wait data');
+        self.readyNext = true;
+        return Promise.resolve(once(self.emitter, 'data')).then(
+          ([{ data, isEnd }]) => {
+            self.debugLogger('3 ChunkIterator get data', data, isEnd);
+            if (isEnd) {
+              self.clear();
+              return { value: undefined, done: true };
+            } else {
+              return { value: data, done: false };
+            }
+          }
+        );
+      },
+    };
   }
 
-  getErrorHandler() {
-    return this.errorHandler;
-  }
-
-  getEndHandler() {
-    return this.endHandler;
-  }
-
-  public onData(dataHandler: (data: unknown) => void) {
-    this.dataHandler = dataHandler;
-  }
-
-  public onEnd(endHandler: () => void) {
-    this.endHandler = endHandler;
-  }
-
-  public onError(errorHandler: (err: Error) => void) {
-    this.errorHandler = errorHandler;
+  clear() {
+    this.readyNext = false;
+    clearInterval(this.intervalHandler);
+    this.emitter.removeAllListeners();
+    this.buffer.length = 0;
   }
 }
 
@@ -310,10 +335,8 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         // out operation
         if (
           originMessage.type === MessageType.Invoke ||
-          // originMessage.type === MessageType.Invoke_Chunk ||
           originMessage.type === MessageType.Request ||
           originMessage.type === MessageType.Response ||
-          // originMessage.type === MessageType.Response_Chunk ||
           originMessage.type === MessageType.Broadcast
         ) {
           this.postMessage(originMessage);
@@ -324,10 +347,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         }
       } else if (message.messageCategory === MessageCategory.IN) {
         // in operation
-        if (
-          originMessage.type === MessageType.Invoke
-          // || originMessage.type === MessageType.Invoke_Chunk
-        ) {
+        if (originMessage.type === MessageType.Invoke) {
           const isChunk = originMessage.messageOptions?.['isChunk'] === true;
           const responder = new AckResponder();
           responder.onData(data => {
@@ -375,10 +395,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
             this.listener?.(originMessage);
             this.eventListenerMap.get(ListenerType.Subscribe)?.(originMessage);
           }
-        } else if (
-          originMessage.type === MessageType.Response
-          // || originMessage.type === MessageType.Response_Chunk
-        ) {
+        } else if (originMessage.type === MessageType.Response) {
           if (originMessage.messageOptions?.relatedMessageId) {
             // worker => main with invoke
             const asyncResolve = this.asyncMessageMap.get(
@@ -491,10 +508,10 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     }
   }
 
-  public publishAsync(
+  public publishAsync<ResData>(
     data: unknown,
     publishOptions: PublishOptions = {}
-  ): Promise<any> {
+  ): Promise<ResData> {
     return new Promise((resolve, reject) => {
       const messageId =
         publishOptions.relatedMessageId || this.generateMessageId();
@@ -513,31 +530,26 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     });
   }
 
-  public publishChunk(
+  public publishChunk<ResData>(
     data: unknown,
     publishOptions: PublishOptions = {}
-  ): IDataCollector {
+  ): AsyncIterable<ResData> {
     const messageId =
       publishOptions.relatedMessageId || this.generateMessageId();
 
-    const collector = new ChunkCollector();
+    const iterator = new ChunkIterator<ResData>(this.debugLogger);
 
     this.useTimeout(
       messageId,
       publishOptions.timeout,
       (data, isEnd) => {
-        if (isEnd) {
-          collector.getEndHandler?.()();
-        } else {
-          collector.getDataHandler?.()(data);
-        }
+        iterator.publish({
+          data,
+          isEnd,
+        });
       },
       err => {
-        if (collector.getErrorHandler()) {
-          collector.getErrorHandler()(err);
-        } else {
-          console.error(err);
-        }
+        iterator.error(err);
       }
     );
 
@@ -554,7 +566,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       },
     });
 
-    return collector;
+    return iterator;
   }
 
   protected useTimeout(
@@ -570,7 +582,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     }, timeout);
 
     this.asyncMessageMap.set(messageId, (err, data, isEnd) => {
-      if (isEnd) {
+      if (isEnd || err) {
         clearTimeout(handler);
       }
       if (err) {

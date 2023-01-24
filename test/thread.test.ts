@@ -300,23 +300,18 @@ describe('/test/thread.test.ts', function () {
       bus.addWorker(worker);
       await bus.start();
 
-      const collector = bus.publishChunk({
+      const iterator = bus.publishChunk<string>({
         data: {
           name: 'test',
         }
       });
 
-      const result = await new Promise((resolve, reject) => {
-        let result = [];
-        collector.onData(data => {
-          result.push(data);
-        });
-        collector.onEnd(() => {
-          resolve(result.join(''));
-        });
-      });
+      let result = [];
+      for await (const data of iterator) {
+        result.push(data);
+      }
 
-      expect(result).toEqual('hello world');
+      expect(result.join('')).toEqual('hello world');
 
       await worker.terminate();
       await bus.stop();
@@ -328,23 +323,18 @@ describe('/test/thread.test.ts', function () {
       bus.addWorker(worker);
       await bus.start();
 
-      const collector = bus.publishChunk({
+      const iterator = bus.publishChunk<string>({
         data: {
           name: 'test',
         }
       });
 
-      const result = await new Promise((resolve, reject) => {
-        let result = [];
-        collector.onData(data => {
-          result.push(data);
-        });
-        collector.onEnd(() => {
-          resolve(result.join(''));
-        });
-      });
+      let result = [];
+      for await (const data of iterator) {
+        result.push(data);
+      }
 
-      expect(result).toEqual('hello world');
+      expect(result.join('')).toEqual('hello world');
 
       await worker.terminate();
       await bus.stop();
@@ -356,27 +346,20 @@ describe('/test/thread.test.ts', function () {
       bus.addWorker(worker);
       await bus.start();
 
-      const collector = bus.publishChunk({
-        data: {
-          name: 'test',
-        },
-      }, {
-        timeout: 1000
-      });
-
       let error;
       try {
-        await new Promise((resolve, reject) => {
-          let result = [];
-          collector.onData(data => {
-            result.push(data);
-          });
-          collector.onEnd(() => {
-            resolve(result.join(''));
-          });
-
-          collector.onError(reject);
+        const iterator = bus.publishChunk<string>({
+          data: {
+            name: 'test',
+          },
+        }, {
+          timeout: 1000
         });
+
+        let result = [];
+        for await (const data of iterator) {
+          result.push(data);
+        }
       } catch (err) {
         error = err;
       }
@@ -394,7 +377,7 @@ describe('/test/thread.test.ts', function () {
       bus.addWorker(worker);
       await bus.start();
 
-      const collector = bus.publishChunk({
+      const iterator = bus.publishChunk<string>({
         data: {
           name: 'test',
         },
@@ -402,17 +385,10 @@ describe('/test/thread.test.ts', function () {
 
       let error;
       try {
-        await new Promise((resolve, reject) => {
-          let result = [];
-          collector.onData(data => {
-            result.push(data);
-          });
-          collector.onEnd(() => {
-            resolve(result.join(''));
-          });
-
-          collector.onError(reject);
-        });
+        let result = [];
+        for await (const data of iterator) {
+          result.push(data);
+        }
       } catch (err) {
         error = err;
       }
