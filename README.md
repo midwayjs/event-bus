@@ -191,11 +191,25 @@ const result = await bus.publishAsync({
 
 ```
 
+使用 try/catch 捕获错误。
+
+```ts
+try {
+  await bus.publishAsync({
+    data: 'abc'
+  });
+} catch (err) {
+  // err.message => 'test'
+}
+```
+
 **publishChunk**
 
 发送消息，会等待订阅方返回多次，包含超时参数，默认 5s。
 
 此 API 仅限于 main 向 worker 发送消息。
+
+`publishChunk` 方法返回的是一个异步迭代器。
 
 ```ts
 
@@ -207,21 +221,32 @@ bus.subscribe((message, responder) => {
 });
 
 // invoke
-const dataCollector = bus.publishChunk({
+const iterator = bus.publishChunk({
   data: 'abc'
 }, {
   timeout: 5000,
 });
 
 let result = '';
-dataCollector.onData(data => {
+for await (const data of iterator) {
   result += data;
-});
+}
+```
 
-dataCollector.onEnd(() => {
-  // result => 'hello world'
-});
+使用 try/catch 捕获错误。
 
+```ts
+const iterator = bus.publishChunk({
+  data: 'abc'
+});
+try {
+  let result = '';
+  for await (const data of iterator) {
+    result += data;
+  }
+} catch (err) {
+  // err.message => 'test'
+}
 ```
 
 **broadcast**
