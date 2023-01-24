@@ -274,23 +274,18 @@ describe('/test/local.test.ts', function () {
       createLocalWorker(join(__dirname, 'local/publish_chunk.ts'));
       await bus.start();
 
-      const collector = bus.publishChunk({
+      const iterator = bus.publishChunk<string>({
         data: {
           name: 'test',
         }
       });
 
-      const result = await new Promise((resolve, reject) => {
-        let result = [];
-        collector.onData(data => {
-          result.push(data);
-        });
-        collector.onEnd(() => {
-          resolve(result.join(''));
-        });
-      });
+      let result = [];
+      for await (const data of iterator) {
+        result.push(data);
+      }
 
-      expect(result).toEqual('hello world');
+      expect(result.join('')).toEqual('hello world');
 
       await bus.stop();
     });
@@ -302,23 +297,18 @@ describe('/test/local.test.ts', function () {
       createLocalWorker(join(__dirname, 'local/publish_chunk_end_data.ts'));
       await bus.start();
 
-      const collector = bus.publishChunk({
+      const iterator = bus.publishChunk<string>({
         data: {
           name: 'test',
         }
       });
 
-      const result = await new Promise((resolve, reject) => {
-        let result = [];
-        collector.onData(data => {
-          result.push(data);
-        });
-        collector.onEnd(() => {
-          resolve(result.join(''));
-        });
-      });
+      let result = [];
+      for await (const data of iterator) {
+        result.push(data);
+      }
 
-      expect(result).toEqual('hello world');
+      expect(result.join('')).toEqual('hello world');
 
       await bus.stop();
     });
@@ -330,27 +320,20 @@ describe('/test/local.test.ts', function () {
       createLocalWorker(join(__dirname, 'local/publish_chunk_timeout.ts'));
       await bus.start();
 
-      const collector = bus.publishChunk({
-        data: {
-          name: 'test',
-        },
-      }, {
-        timeout: 1000
-      });
-
       let error;
       try {
-        await new Promise((resolve, reject) => {
-          let result = [];
-          collector.onData(data => {
-            result.push(data);
-          });
-          collector.onEnd(() => {
-            resolve(result.join(''));
-          });
-
-          collector.onError(reject);
+        const iterator = bus.publishChunk<string>({
+          data: {
+            name: 'test',
+          },
+        }, {
+          timeout: 1000
         });
+
+        let result = [];
+        for await (const data of iterator) {
+          result.push(data);
+        }
       } catch (err) {
         error = err;
       }
@@ -368,7 +351,7 @@ describe('/test/local.test.ts', function () {
       createLocalWorker(join(__dirname, 'local/publish_chunk_worker_error.ts'));
       await bus.start();
 
-      const collector = bus.publishChunk({
+      const iterator = bus.publishChunk<string>({
         data: {
           name: 'test',
         },
@@ -376,17 +359,10 @@ describe('/test/local.test.ts', function () {
 
       let error;
       try {
-        await new Promise((resolve, reject) => {
-          let result = [];
-          collector.onData(data => {
-            result.push(data);
-          });
-          collector.onEnd(() => {
-            resolve(result.join(''));
-          });
-
-          collector.onError(reject);
-        });
+        let result = [];
+        for await (const data of iterator) {
+          result.push(data);
+        }
       } catch (err) {
         error = err;
       }

@@ -106,8 +106,14 @@ export interface IEventBus<T> {
     callback: SubscribeTopicListener,
     options?: SubscribeOptions
   ): void;
-  publishAsync(data: unknown, publishOptions?: PublishOptions): Promise<any>;
-  publishChunk(data: unknown, publishOptions?: PublishOptions): IDataCollector;
+  publishAsync<ResData>(
+    data: unknown,
+    publishOptions?: PublishOptions
+  ): Promise<ResData>;
+  publishChunk<ResData = unknown>(
+    data: unknown,
+    publishOptions?: PublishOptions
+  ): AsyncIterable<ResData>;
   publish(data: unknown, publishOptions?: PublishOptions): void;
   broadcast(data: unknown, options?: BroadcastOptions): void;
   isMain(): boolean;
