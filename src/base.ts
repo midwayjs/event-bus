@@ -105,6 +105,7 @@ class ChunkIterator<T> implements AsyncIterable<T> {
   }
 
   clear() {
+    this.readyNext = false;
     clearInterval(this.intervalHandler);
     this.emitter.removeAllListeners();
     this.buffer.length = 0;
@@ -581,7 +582,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     }, timeout);
 
     this.asyncMessageMap.set(messageId, (err, data, isEnd) => {
-      if (isEnd) {
+      if (isEnd || err) {
         clearTimeout(handler);
       }
       if (err) {
