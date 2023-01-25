@@ -1,11 +1,14 @@
-import { ThreadEventBus } from '../../src/index';
-
+import { LocalEventBus } from '../../src/index';
+import { sleep } from '../util';
 async function createWorker() {
-  const bus = new ThreadEventBus({
+  const bus = new LocalEventBus({
     isWorker: true,
   });
+  await bus.start();
+  bus.subscribe(async (message, responder) => {
 
-  bus.subscribe((message, responder) => {
+    await sleep();
+
     if (responder) {
       responder.send('hello');
       responder.send(' world');
@@ -14,10 +17,7 @@ async function createWorker() {
   }, {
     topic: 'in-request',
   });
-
-  await bus.start();
 }
-
 createWorker().then(() => {
   console.log('ready');
 });
