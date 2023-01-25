@@ -316,6 +316,31 @@ describe('/test/cp.test.ts', function () {
       await bus.stop();
     });
 
+    it('should publish chunk with topic', async () => {
+      const bus = new ChildProcessEventBus();
+      const worker = createChildProcessWorker(join(__dirname, 'cp/publish_chunk_topic.ts'));
+      bus.addWorker(worker);
+      await bus.start();
+
+      const iterator = bus.publishChunk<string>({
+        data: {
+          name: 'test',
+        }
+      }, {
+        topic: 'in-request'
+      });
+
+      let result = [];
+      for await (const data of iterator) {
+        result.push(data);
+      }
+
+      expect(result.join('')).toEqual('hello world');
+
+      await worker.kill();
+      await bus.stop();
+    });
+
     it('test publish chunk and run end with data', async () => {
       const bus = new ChildProcessEventBus();
       const worker = createChildProcessWorker(join(__dirname, 'cp/publish_chunk_end_data.ts'));

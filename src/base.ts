@@ -204,6 +204,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         }
       } else {
         console.warn(`No listener found, message = ${JSON.stringify(message)}`);
+        // 这里可以拿到超时时间，需要的时候可以释放一些定时器
       }
     };
 
@@ -525,6 +526,9 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           workerId: this.getWorkerId(),
           type: this.isMain() ? MessageType.Invoke : MessageType.Response,
           body: data,
+          messageOptions: {
+            topic: publishOptions.topic,
+          },
         },
       });
     });
@@ -562,6 +566,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         body: data,
         messageOptions: {
           isChunk: true,
+          topic: publishOptions.topic,
         },
       },
     });
