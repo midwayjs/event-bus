@@ -1,6 +1,7 @@
 import { join } from 'path';
 import { createThreadWorker } from './util';
 import { ThreadEventBus } from '../src';
+import * as log from 'why-is-node-running';
 
 describe('/test/thread.test.ts', function () {
 
@@ -315,6 +316,61 @@ describe('/test/thread.test.ts', function () {
 
       await worker.terminate();
       await bus.stop();
+    });
+
+    it('should publish chunk with topic', async () => {
+      const bus = new ThreadEventBus();
+      const worker = createThreadWorker(join(__dirname, 'worker/publish_chunk_topic.ts'));
+      bus.addWorker(worker);
+      await bus.start();
+
+      const iterator = bus.publishChunk<string>({
+        data: {
+          name: 'test',
+        }
+      }, {
+        topic: 'in-request'
+      });
+
+      let result = [];
+      for await (const data of iterator) {
+        result.push(data);
+      }
+
+      expect(result.join('')).toEqual('hello world');
+
+      await worker.terminate();
+      await bus.stop();
+    });
+
+    it('should publish chunk and no topic listener will be timeout', async () => {
+      const bus = new ThreadEventBus();
+      const worker = createThreadWorker(join(__dirname, 'worker/publish_chunk_topic_timeout.ts'));
+      bus.addWorker(worker);
+      await bus.start();
+
+      const iterator = bus.publishChunk<string>({
+        data: {
+          name: 'test',
+        },
+        timeout: 1000,
+      }, {
+        topic: 'request'
+      });
+
+      let result = [];
+      for await (const data of iterator) {
+        result.push(data);
+      }
+
+      expect(result.join('')).toEqual('hello world');
+
+      await worker.terminate();
+      await bus.stop();
+
+      setTimeout(function () {
+        log() // logs out active handles that are keeping node running
+      }, 100)
     });
 
     it('test publish chunk and run end with data', async () => {
