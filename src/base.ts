@@ -113,7 +113,7 @@ class ChunkIterator<T> implements AsyncIterable<T> {
 }
 
 export class AckResponder implements IResponder {
-  private isEnd = false;
+  private isEndFlag = false;
   private dataHandler: (data: unknown) => void;
   private errorHandler: (err: Error) => void;
   public onData(dataHandler: (data: unknown) => void) {
@@ -125,8 +125,8 @@ export class AckResponder implements IResponder {
   }
 
   public end(data?: unknown) {
-    if (!this.isEnd) {
-      this.isEnd = true;
+    if (!this.isEndFlag) {
+      this.isEndFlag = true;
       if (data) {
         this.sendData(data);
       }
@@ -141,17 +141,21 @@ export class AckResponder implements IResponder {
   }
 
   public send(data: unknown) {
-    if (!this.isEnd) {
+    if (!this.isEndFlag) {
       this.sendData(data);
     }
   }
 
   public error(err: Error) {
-    if (!this.isEnd) {
+    if (!this.isEndFlag) {
       if (this.errorHandler) {
         this.errorHandler(err);
       }
     }
+  }
+
+  public isEnd() {
+    return this.isEndFlag;
   }
 }
 

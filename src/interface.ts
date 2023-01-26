@@ -126,14 +126,9 @@ export interface IEventBus<T> {
   onError(listener: (err: Error) => void);
 }
 
-export interface IDataCollector {
-  onData(dataHandler: (data: unknown) => void);
-  onEnd(endHandler: () => void);
-  onError(errorHandler: (err: Error) => void);
-}
-
 export interface IResponder {
   end(data?: unknown): void;
   send(data: unknown): void;
   error(err: Error): void;
+  isEnd(): boolean;
 }
