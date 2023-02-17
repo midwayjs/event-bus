@@ -61,19 +61,28 @@ class ChunkIterator<T> implements AsyncIterable<T> {
   private buffer = [];
   private readyNext = false;
   private intervalHandler;
-  constructor(protected readonly debugLogger) {
+  constructor(
+    protected readonly options: {
+      debugLogger: any;
+      chunkPublishBufferCheckInterval?: number;
+    }
+  ) {
     this.emitter = new EventEmitter();
     this.intervalHandler = setInterval(() => {
-      this.debugLogger('this.readyNext', this.readyNext, this.buffer.length);
+      this.options.debugLogger(
+        'this.readyNext',
+        this.readyNext,
+        this.buffer.length
+      );
       if (this.readyNext) {
         const data = this.buffer.shift();
         if (data) {
           this.readyNext = false;
-          this.debugLogger('2 got data and emit iterator', data);
+          this.options.debugLogger('2 got data and emit iterator', data);
           this.emitter.emit('data', data);
         }
       }
-    }, 100);
+    }, this.options.chunkPublishBufferCheckInterval || 20);
   }
   publish(data) {
     this.buffer.push(data);
@@ -87,11 +96,11 @@ class ChunkIterator<T> implements AsyncIterable<T> {
     const self = this;
     return {
       next(): Promise<IteratorResult<T>> {
-        self.debugLogger('1 ChunkIterator run next and wait data');
+        self.options.debugLogger('1 ChunkIterator run next and wait data');
         self.readyNext = true;
         return Promise.resolve(once(self.emitter, 'data')).then(
           ([{ data, isEnd }]) => {
-            self.debugLogger('3 ChunkIterator get data', data, isEnd);
+            self.options.debugLogger('3 ChunkIterator get data', data, isEnd);
             if (isEnd) {
               self.clear();
               return { value: undefined, done: true };
@@ -545,7 +554,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     const messageId =
       publishOptions.relatedMessageId || this.generateMessageId();
 
-    const iterator = new ChunkIterator<ResData>(this.debugLogger);
+    const iterator = new ChunkIterator<ResData>({
+      debugLogger: this.debugLogger,
+      chunkPublishBufferCheckInterval:
+        this.options.publishChunkBufferCheckInterval,
+    });
 
     this.useTimeout(
       messageId,
