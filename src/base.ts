@@ -1,5 +1,5 @@
 // event bus
-import { EventEmitter, once } from 'events';
+import { EventEmitter } from 'events';
 import {
   BroadcastOptions,
   EventBusOptions,
@@ -25,7 +25,7 @@ import {
 } from './error';
 
 const DEFAULT_LISTENER_KEY = '_default_';
-const END_FLAG = '\n\n';
+const END_FLAG = null;
 
 function revertError(errorObj: any) {
   const error = new Error();
@@ -57,66 +57,70 @@ export async function createWaitHandler(
 }
 
 class ChunkIterator<T> implements AsyncIterable<T> {
-  private emitter: EventEmitter;
   private buffer = [];
-  private readyNext = false;
-  private intervalHandler;
-  constructor(
-    protected readonly options: {
-      debugLogger: any;
-      chunkPublishBufferCheckInterval?: number;
-    }
-  ) {
-    this.emitter = new EventEmitter();
-    this.intervalHandler = setInterval(() => {
-      this.options.debugLogger(
-        'this.readyNext',
-        this.readyNext,
-        this.buffer.length
-      );
-      if (this.readyNext) {
-        const data = this.buffer.shift();
-        if (data) {
-          this.readyNext = false;
-          this.options.debugLogger('2 got data and emit iterator', data);
-          this.emitter.emit('data', data);
-        }
-      }
-    }, this.options.chunkPublishBufferCheckInterval || 20);
-  }
+  private waitingPromiseDeferred;
+  private errorRisen: Error;
+
+  constructor(protected readonly debugLogger) {}
   publish(data) {
     this.buffer.push(data);
+    // check buffer and resolve defer
+    if (this.waitingPromiseDeferred) {
+      const w = this.waitingPromiseDeferred;
+      this.waitingPromiseDeferred = null;
+      // 这里要从 buffer 取
+      w.resolve(this.buffer.shift());
+    }
   }
   error(err) {
-    this.emitter.emit('error', err);
+    if (this.waitingPromiseDeferred) {
+      const w = this.waitingPromiseDeferred;
+      this.waitingPromiseDeferred = null;
+      w.reject(err);
+    } else {
+      this.errorRisen = err;
+    }
     this.clear();
   }
   [Symbol.asyncIterator](): AsyncIterator<T> {
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const self = this;
-    return {
-      next(): Promise<IteratorResult<T>> {
-        self.options.debugLogger('1 ChunkIterator run next and wait data');
-        self.readyNext = true;
-        return Promise.resolve(once(self.emitter, 'data')).then(
-          ([{ data, isEnd }]) => {
-            self.options.debugLogger('3 ChunkIterator get data', data, isEnd);
-            if (isEnd) {
-              self.clear();
-              return { value: undefined, done: true };
-            } else {
-              return { value: data, done: false };
-            }
-          }
-        );
-      },
-    };
+    return this;
+  }
+
+  async tryToGetNextData(): Promise<{ data: any; isEnd: boolean }> {
+    if (this.errorRisen) {
+      // 如果在循环时发现之前已经有接到错误，直接抛出
+      throw this.errorRisen;
+    }
+    /**
+     * 1、如果在循环前有数据，就从 buffer 中取
+     * 2、如果 buffer 里没数据，这里就要等待数据，在 publish 的时候直接 resolve
+     */
+    if (this.buffer.length > 0) {
+      return this.buffer.shift();
+    } else {
+      const deferred = {} as any;
+      deferred.promise = new Promise((resolve, reject) => {
+        deferred.resolve = resolve;
+        deferred.reject = reject;
+      });
+      this.waitingPromiseDeferred = deferred;
+      return deferred.promise;
+    }
+  }
+
+  async next(): Promise<IteratorResult<T>> {
+    this.debugLogger('1 ChunkIterator run next and wait data');
+    const { data, isEnd } = await this.tryToGetNextData();
+    this.debugLogger('2 ChunkIterator get data', data, isEnd);
+    if (isEnd) {
+      this.clear();
+      return { value: undefined, done: true };
+    } else {
+      return { value: data, done: false };
+    }
   }
 
   clear() {
-    this.readyNext = false;
-    clearInterval(this.intervalHandler);
-    this.emitter.removeAllListeners();
     this.buffer.length = 0;
   }
 }
@@ -554,11 +558,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     const messageId =
       publishOptions.relatedMessageId || this.generateMessageId();
 
-    const iterator = new ChunkIterator<ResData>({
-      debugLogger: this.debugLogger,
-      chunkPublishBufferCheckInterval:
-        this.options.publishChunkBufferCheckInterval,
-    });
+    const iterator = new ChunkIterator<ResData>(this.debugLogger);
 
     this.useTimeout(
       messageId,

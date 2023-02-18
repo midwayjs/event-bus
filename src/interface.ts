@@ -53,7 +53,6 @@ export interface EventBusOptions {
   initTimeout?: number;
   initTimeoutCheckInterval?: number;
   isWorker?: boolean;
-  publishChunkBufferCheckInterval?: number;
 }
 
 export interface LocalEventBusOptions extends EventBusOptions {
