@@ -25,7 +25,7 @@ import {
 } from './error';
 
 const DEFAULT_LISTENER_KEY = '_default_';
-const END_FLAG = '\n\n';
+const END_FLAG = null;
 
 function revertError(errorObj: any) {
   const error = new Error();
