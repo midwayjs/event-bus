@@ -60,7 +60,7 @@ class ChunkIterator<T> implements AsyncIterable<T> {
   private emitter: EventEmitter;
   private buffer = [];
   private readyNext = false;
-  private intervalHandler;
+  private stopLoop = false;
   constructor(
     protected readonly options: {
       debugLogger: any;
@@ -68,7 +68,8 @@ class ChunkIterator<T> implements AsyncIterable<T> {
     }
   ) {
     this.emitter = new EventEmitter();
-    this.intervalHandler = setInterval(() => {
+
+    const checkBufferChanged = () => {
       this.options.debugLogger(
         'this.readyNext',
         this.readyNext,
@@ -82,7 +83,12 @@ class ChunkIterator<T> implements AsyncIterable<T> {
           this.emitter.emit('data', data);
         }
       }
-    }, this.options.chunkPublishBufferCheckInterval || 20);
+      if (!this.stopLoop) {
+        setImmediate(checkBufferChanged);
+      }
+    };
+
+    setImmediate(checkBufferChanged);
   }
   publish(data) {
     this.buffer.push(data);
@@ -115,7 +121,7 @@ class ChunkIterator<T> implements AsyncIterable<T> {
 
   clear() {
     this.readyNext = false;
-    clearInterval(this.intervalHandler);
+    this.stopLoop = true;
     this.emitter.removeAllListeners();
     this.buffer.length = 0;
   }
@@ -556,8 +562,6 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
 
     const iterator = new ChunkIterator<ResData>({
       debugLogger: this.debugLogger,
-      chunkPublishBufferCheckInterval:
-        this.options.publishChunkBufferCheckInterval,
     });
 
     this.useTimeout(
