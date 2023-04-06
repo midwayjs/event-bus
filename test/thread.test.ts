@@ -426,4 +426,24 @@ describe('/test/thread.test.ts', function () {
       await bus.stop();
     });
   });
+
+  it('test publish from worker', async () => {
+    const bus = new ThreadEventBus({
+      isWorker: false,
+    });
+    const worker = createThreadWorker(join(__dirname, 'worker/publish_from_worker.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const result = await new Promise(resolve => {
+      bus.subscribe(message => {
+        resolve(message.body);
+      });
+    });
+
+    expect(result).toEqual({ data: 'hello world' });
+
+    await worker.terminate();
+    await bus.stop();
+  });
 });

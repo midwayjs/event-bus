@@ -425,4 +425,22 @@ describe('/test/cp.test.ts', function () {
       await bus.stop();
     });
   });
+
+  it('test publish from worker', async () => {
+    const bus = new ChildProcessEventBus({
+      isWorker: false,
+    });
+    createChildProcessWorker(join(__dirname, 'cp/publish_from_worker.ts'));
+    await bus.start();
+
+    const result = await new Promise(resolve => {
+      bus.subscribe(message => {
+        resolve(message.body);
+      });
+    });
+
+    expect(result).toEqual({ data: 'hello world' });
+
+    await bus.stop();
+  });
 });
