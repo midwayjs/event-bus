@@ -399,4 +399,22 @@ describe('/test/local.test.ts', function () {
       await bus.stop();
     });
   });
+
+  it('test publish from worker', async () => {
+    const bus = new LocalEventBus({
+      isWorker: false,
+    });
+    createLocalWorker(join(__dirname, 'local/publish_from_worker.ts'));
+    await bus.start();
+
+    const result = await new Promise(resolve => {
+      bus.subscribe(message => {
+        resolve(message.body);
+      });
+    });
+
+    expect(result).toEqual({ data: 'hello world' });
+
+    await bus.stop();
+  });
 });

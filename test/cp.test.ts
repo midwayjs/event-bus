@@ -286,9 +286,9 @@ describe('/test/cp.test.ts', function () {
       });
     })
 
-    await worker1.kill();
-    await worker2.kill();
-    await worker3.kill();
+    worker1.kill();
+    worker2.kill();
+    worker3.kill();
     await bus.stop();
   });
 
@@ -424,5 +424,25 @@ describe('/test/cp.test.ts', function () {
       await worker.kill();
       await bus.stop();
     });
+  });
+
+  it('test publish from worker', async () => {
+    const bus = new ChildProcessEventBus({
+      isWorker: false,
+    });
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_from_worker.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const result = await new Promise(resolve => {
+      bus.subscribe(message => {
+        resolve(message.body);
+      });
+    });
+
+    expect(result).toEqual({ data: 'hello world' });
+
+    worker.kill();
+    await bus.stop();
   });
 });

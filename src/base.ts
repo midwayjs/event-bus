@@ -35,6 +35,20 @@ function revertError(errorObj: any) {
   return error;
 }
 
+class MessageLimitSet extends Set<{
+  message: Message;
+  responder: IResponder;
+}> {
+  constructor(protected limit: number) {
+    super();
+  }
+  add(value: { message: Message; responder: IResponder }) {
+    if (this.size < this.limit) {
+      return super.add(value);
+    }
+  }
+}
+
 export async function createWaitHandler(
   checkHandler: () => boolean,
   options: WaitCheckOptions = {}
@@ -180,6 +194,10 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   protected workerReady = new Map<string, { worker: T; ready: boolean }>();
   private listener: SubscribeTopicListener;
   private topicListener: Map<string, Set<SubscribeTopicListener>> = new Map();
+  private topicMessageCache: Map<
+    string,
+    Set<{ message: Message; responder: IResponder }>
+  > = new Map();
   private asyncMessageMap = new Map<string, any>();
   protected eventListenerMap = new Map<string, any>();
   protected debugLogger = this.createDebugger();
@@ -220,8 +238,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           });
         }
       } else {
-        console.warn(`No listener found, message = ${JSON.stringify(message)}`);
-        // 这里可以拿到超时时间，需要的时候可以释放一些定时器
+        const topic = message.messageOptions?.topic || DEFAULT_LISTENER_KEY;
+        if (!this.topicMessageCache.has(topic)) {
+          this.topicMessageCache.set(topic, new MessageLimitSet(10));
+        }
+        this.topicMessageCache.get(topic).add({ message, responder });
       }
     };
 
@@ -473,13 +494,29 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
     listener: SubscribeTopicListener,
     options: SubscribeOptions = {}
   ) {
-    if (!this.topicListener.has(options.topic)) {
-      this.topicListener.set(options.topic || DEFAULT_LISTENER_KEY, new Set());
+    const topic = options.topic || DEFAULT_LISTENER_KEY;
+    if (!this.topicListener.has(topic)) {
+      this.topicListener.set(topic, new Set());
     }
     if (options.subscribeOnce) {
       listener['_subscribeOnce'] = true;
     }
-    this.topicListener.get(options.topic || DEFAULT_LISTENER_KEY).add(listener);
+    this.topicListener.get(topic).add(listener);
+
+    // if topic has cache
+    if (
+      this.topicMessageCache.has(topic) &&
+      this.topicMessageCache.get(topic).size > 0
+    ) {
+      // loop topic cache and trigger listener
+      for (const data of this.topicMessageCache.get(topic)) {
+        this.listener(data.message, data.responder);
+        if (options.subscribeOnce) {
+          break;
+        }
+      }
+      this.topicMessageCache.get(topic).clear();
+    }
   }
 
   public subscribeOnce(
