@@ -54,16 +54,21 @@ export async function createWaitHandler(
   options: WaitCheckOptions = {}
 ) {
   await new Promise<boolean>((resolve, reject) => {
-    const timeoutHandler = setTimeout(() => {
-      clearInterval(handler);
-      clearTimeout(timeoutHandler);
-      reject(new EventBusTimeoutError());
-    }, options.timeout || 5000);
+    let timeoutHandler;
+    if (options.timeout > 0) {
+      timeoutHandler = setTimeout(() => {
+        clearInterval(handler);
+        clearTimeout(timeoutHandler);
+        reject(new EventBusTimeoutError());
+      }, options.timeout || 5000);
+    }
 
     const handler = setInterval(() => {
       if (checkHandler()) {
         clearInterval(handler);
-        clearTimeout(timeoutHandler);
+        if (timeoutHandler) {
+          clearTimeout(timeoutHandler);
+        }
         resolve(true);
       }
     }, options.timeoutCheckInterval || 500);
