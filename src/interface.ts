@@ -60,6 +60,11 @@ export interface LocalEventBusOptions extends EventBusOptions {
   waitWorkerCheckInterval?: number;
 }
 
+export interface ThreadEventBusOptions extends EventBusOptions {
+  requestEncoder?: (message: Message) => any;
+  requestDecoder?: (serializedData: any) => Message;
+}
+
 export interface WaitCheckOptions {
   timeout?: number;
   timeoutCheckInterval?: number;
