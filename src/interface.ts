@@ -61,8 +61,8 @@ export interface LocalEventBusOptions extends EventBusOptions {
 }
 
 export interface ThreadEventBusOptions extends EventBusOptions {
-  requestEncoder?: (message: Message) => any;
-  requestDecoder?: (serializedData: any) => Message;
+  encoder?: (message: Message) => any;
+  decoder?: (serializedData: any) => Message;
 }
 
 export interface WaitCheckOptions {
