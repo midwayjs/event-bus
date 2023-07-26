@@ -1,5 +1,4 @@
 // event bus
-import { EventEmitter } from 'events';
 import {
   BroadcastOptions,
   EventBusOptions,
@@ -190,7 +189,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   private isInited = false;
   protected workers: T[] = [];
   protected stopping = false;
-  private hub = new EventEmitter();
+  private messageReceiver: (message: EventCenterMessage) => void;
   protected workerReady = new Map<string, { worker: T; ready: boolean }>();
   private listener: SubscribeTopicListener;
   private topicListener: Map<string, Set<SubscribeTopicListener>> = new Map();
@@ -359,7 +358,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   }
 
   private setupEventBind() {
-    this.hub.on('message', (message: EventCenterMessage) => {
+    this.messageReceiver = (message: EventCenterMessage) => {
       if (!message.message || !message.message.messageId) {
         // ignore unvalid format message
         return;
@@ -483,11 +482,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           }
         }
       }
-    });
+    };
   }
 
   protected transit(message: EventCenterMessage) {
-    this.hub.emit('message', message);
+    this.messageReceiver(message);
   }
 
   public subscribe(
@@ -759,7 +758,6 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
 
   public async stop(): Promise<void> {
     this.stopping = true;
-    this.hub.removeAllListeners();
     this.workerReady.clear();
     this.eventListenerMap.clear();
     this.listener = null;

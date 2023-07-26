@@ -123,6 +123,7 @@ async function createChildProcess(workerNum) {
       }
     })
     .on("cycle", function(event) {
+      console.log(event.stats)
       console.log(String(event.target));
     })
     .on("complete", function() {
