@@ -445,4 +445,72 @@ describe('/test/cp.test.ts', function () {
     worker.kill();
     await bus.stop();
   });
+
+  it('test publish with custom dispatcher', async () => {
+    const bus = new ChildProcessEventBus({
+      dispatchStrategy: (workers) => {
+        return workers[0];
+      }
+    });
+    const worker1 = createChildProcessWorker(join(__dirname, 'cp/publish_custom_dispatcher.ts'));
+    const worker2 = createChildProcessWorker(join(__dirname, 'cp/publish_custom_dispatcher.ts'));
+    const worker3 = createChildProcessWorker(join(__dirname, 'cp/publish_custom_dispatcher.ts'));
+    bus.addWorker(worker1);
+    bus.addWorker(worker2);
+    bus.addWorker(worker3);
+    await bus.start();
+
+    let result = await bus.publishAsync({
+      data: {
+        name: 'test',
+      }
+    });
+
+    expect(result).toEqual(String(worker1.pid));
+    result = await bus.publishAsync({
+      data: {
+        name: 'test',
+      }
+    });
+
+    expect(result).toEqual(String(worker1.pid));
+    result = await bus.publishAsync({
+      data: {
+        name: 'test',
+      }
+    });
+
+    expect(result).toEqual(String(worker1.pid));
+
+    worker1.kill();
+    worker2.kill();
+    worker3.kill();
+    await bus.stop();
+  });
+
+  it('should publish with custom dispatcher and throw when not found worker', async () => {
+    const bus = new ChildProcessEventBus({
+      dispatchStrategy: (workers) => {
+        return undefined;
+      }
+    });
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_custom_dispatcher.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    let error;
+    try {
+      await bus.publishAsync({
+        data: {
+          name: 'test',
+        }
+      });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error.name).toEqual('EventBusDispatchStrategyError');
+    worker.kill();
+    await bus.stop();
+  });
 });

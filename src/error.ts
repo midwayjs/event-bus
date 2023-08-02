@@ -1,4 +1,5 @@
 import { format } from 'util';
+import { Message } from './interface';
 
 export class EventBusPublishTimeoutError extends Error {
   constructor(messageId: string) {
@@ -15,23 +16,23 @@ export class EventBusTimeoutError extends Error {
 }
 
 export class EventBusMainPostError extends Error {
-  constructor(message, err) {
+  constructor(message: Message, err: Error) {
     super(
-      format('Mainthread post message [%j] error => %s.', message, err.stack)
+      format('Main thread post message [%j] error => %s.', message, err.stack)
     );
     this.name = 'EventBusMainPostError';
   }
 }
 
 export class EventBusWorkerPostError extends Error {
-  constructor(message, err) {
+  constructor(message: Message, err: Error) {
     super(format('Worker post message [%j] error => %j.', message, err.stack));
     this.name = 'EventBusWorkerPostError';
   }
 }
 
 export class EventBusPublishSpecifyWorkerError extends Error {
-  constructor(workerId) {
+  constructor(workerId: string) {
     super(
       format(
         'Worker(%s) not find in ready map, maybe it is a wrong pid.',
@@ -39,5 +40,12 @@ export class EventBusPublishSpecifyWorkerError extends Error {
       )
     );
     this.name = 'EventBusPublishSpecifyWorkerError';
+  }
+}
+
+export class EventBusDispatchStrategyError extends Error {
+  constructor() {
+    super('Dispatch strategy not found a worker and stop post.');
+    this.name = 'EventBusDispatchStrategyError';
   }
 }

@@ -15,6 +15,9 @@ export enum MessageType {
    * publish async: main => worker
    */
   Invoke = 'invoke',
+  /**
+   * broadcast to all workers, or except the specified worker
+   */
   Broadcast = 'broadcast',
 }
 
@@ -53,6 +56,10 @@ export interface EventBusOptions {
   initTimeout?: number;
   initTimeoutCheckInterval?: number;
   isWorker?: boolean;
+  /**
+   * custom worker dispatcher
+   */
+  dispatchStrategy?: <Worker>(workers: Worker[]) => Worker | undefined;
 }
 
 export interface LocalEventBusOptions extends EventBusOptions {
