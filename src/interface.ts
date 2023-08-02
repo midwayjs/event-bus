@@ -59,7 +59,10 @@ export interface EventBusOptions {
   /**
    * custom worker dispatcher
    */
-  dispatchStrategy?: <Worker>(workers: Worker[]) => Worker | undefined;
+  dispatchStrategy?: <Worker>(
+    workers: Worker[],
+    dispatchToken: any
+  ) => Worker | undefined;
 }
 
 export interface LocalEventBusOptions extends EventBusOptions {
@@ -84,6 +87,10 @@ export interface PublishOptions {
   topic?: string;
   timeout?: number;
   isChunk?: boolean;
+  /**
+   * dispatch strategy will be selected according to this token
+   */
+  dispatchToken?: any;
 }
 
 export interface BroadcastOptions {

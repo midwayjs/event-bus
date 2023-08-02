@@ -706,7 +706,10 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           this.mainSendMessage(targetWorker, message);
         } else {
           if (this.options.dispatchStrategy) {
-            const selectedWorker = this.options.dispatchStrategy(this.workers);
+            const selectedWorker = this.options.dispatchStrategy(
+              this.workers,
+              (message.messageOptions as PublishOptions)?.dispatchToken
+            );
             if (selectedWorker) {
               try {
                 this.mainSendMessage(selectedWorker, message);
