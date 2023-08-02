@@ -16,6 +16,7 @@ import {
 } from './interface';
 import { debuglog } from 'util';
 import {
+  EventBusDispatchStrategyError,
   EventBusMainPostError,
   EventBusPublishSpecifyWorkerError,
   EventBusPublishTimeoutError,
@@ -704,16 +705,31 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           }
           this.mainSendMessage(targetWorker, message);
         } else {
-          // round ring
-          const [worker, ...otherWorkers] = this.workers;
-          try {
-            this.mainSendMessage(worker, message);
-          } catch (err) {
-            this.eventListenerMap.get(ListenerType.Error)?.(
-              new EventBusMainPostError(message, err)
-            );
+          if (this.options.dispatchStrategy) {
+            const selectedWorker = this.options.dispatchStrategy(this.workers);
+            if (selectedWorker) {
+              try {
+                this.mainSendMessage(selectedWorker, message);
+              } catch (err) {
+                this.eventListenerMap.get(ListenerType.Error)?.(
+                  new EventBusMainPostError(message, err)
+                );
+              }
+            } else {
+              throw new EventBusDispatchStrategyError();
+            }
+          } else {
+            // round ring
+            const [worker, ...otherWorkers] = this.workers;
+            try {
+              this.mainSendMessage(worker, message);
+            } catch (err) {
+              this.eventListenerMap.get(ListenerType.Error)?.(
+                new EventBusMainPostError(message, err)
+              );
+            }
+            this.workers = [...otherWorkers, worker];
           }
-          this.workers = [...otherWorkers, worker];
         }
       }
     } else {
