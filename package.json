@@ -1,6 +1,6 @@
 {
   "name": "@midwayjs/event-bus",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Midway event bus",
   "main": "dist/index",
   "typings": "dist/index.d.ts",

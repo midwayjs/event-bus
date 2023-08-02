@@ -1,4 +1,9 @@
 
+1.9.1 / 2023-08-02
+==================
+
+  * refactor: add dispatch token for cutsom dispatch strategy
+
 1.9.0 / 2023-08-02
 ==================
 
