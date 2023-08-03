@@ -582,6 +582,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           body: data,
           messageOptions: {
             topic: publishOptions.topic,
+            dispatchToken: publishOptions.dispatchToken,
           },
         },
       });
