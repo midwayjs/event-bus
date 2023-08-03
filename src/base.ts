@@ -202,7 +202,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   protected eventListenerMap = new Map<string, any>();
   protected debugLogger = this.createDebugger();
 
-  constructor(protected readonly options: EventBusOptions = {}) {
+  constructor(protected readonly options: EventBusOptions<T> = {}) {
     this.debugLogger(
       `Start EventBus(${this.constructor.name}) in ${
         this.isWorker() ? 'worker' : 'main'

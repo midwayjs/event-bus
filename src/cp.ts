@@ -1,10 +1,11 @@
-import { Message } from './interface';
+import { ChildProcessEventBusOptions, Message } from './interface';
 import { ChildProcess } from 'child_process';
 import { AbstractEventBus } from './base';
 import * as cluster from 'cluster';
 import * as process from 'process';
 
 export class ChildProcessEventBus extends AbstractEventBus<ChildProcess> {
+  protected options: ChildProcessEventBusOptions;
   protected workerSubscribeMessage(
     subscribeMessageHandler: (message: Message) => void
   ) {

@@ -1,3 +1,6 @@
+import type { Worker } from 'worker_threads';
+import type { ChildProcess } from 'child_process';
+
 export enum MessageType {
   /**
    * worker => main
@@ -52,28 +55,30 @@ export type EventCenterMessage = {
   message: Message;
 };
 
-export interface EventBusOptions {
+export interface EventBusOptions<Worker> {
   initTimeout?: number;
   initTimeoutCheckInterval?: number;
   isWorker?: boolean;
   /**
    * custom worker dispatcher
    */
-  dispatchStrategy?: <Worker>(
+  dispatchStrategy?: (
     workers: Worker[],
     dispatchToken: any
   ) => Worker | undefined;
 }
 
-export interface LocalEventBusOptions extends EventBusOptions {
+export interface LocalEventBusOptions extends EventBusOptions<any> {
   waitWorkerTimeout?: number;
   waitWorkerCheckInterval?: number;
 }
 
-export interface ThreadEventBusOptions extends EventBusOptions {
+export interface ThreadEventBusOptions extends EventBusOptions<Worker> {
   encoder?: (message: Message) => any;
   decoder?: (serializedData: any) => Message;
 }
+
+export type ChildProcessEventBusOptions = EventBusOptions<ChildProcess>;
 
 export interface WaitCheckOptions {
   timeout?: number;
