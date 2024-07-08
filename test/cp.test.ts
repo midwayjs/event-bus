@@ -51,6 +51,38 @@ describe('/test/cp.test.ts', function () {
     await bus.stop();
   });
 
+  it('test base subscribe with abort', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/base.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const result = await new Promise(resolve => {
+      const abortController = bus.subscribe(message => {
+        resolve(message.body);
+      });
+
+      abortController.abort();
+
+      bus.publish({
+        data: {
+          name: 'test',
+        }
+      }, {
+        topic: 'target'
+      });
+
+      setTimeout(() => {
+        resolve(null);
+      }, 1000);
+    });
+
+    expect(result).toEqual(null);
+
+    worker.kill();
+    await bus.stop();
+  });
+
   it('test publish with async', async () => {
     const bus = new ChildProcessEventBus();
     const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async.ts'));

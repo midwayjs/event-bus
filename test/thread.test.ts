@@ -52,6 +52,40 @@ describe('/test/thread.test.ts', function () {
     await bus.stop();
   });
 
+  it('test base subscribe and abort', async () => {
+    const bus = new ThreadEventBus();
+    const worker = createThreadWorker(join(__dirname, 'worker/base.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const result = await new Promise(resolve => {
+      const abortController = bus.subscribe(message => {
+        resolve(message.body);
+      });
+
+      abortController.abort();
+
+      bus.publish({
+          data: {
+            name: 'test',
+          }
+        },
+        {
+          topic: 'target',
+        });
+
+      setTimeout(() => {
+        resolve(null);
+      }, 1000);
+
+    });
+
+    expect(result).toEqual(null);
+
+    await worker.terminate();
+    await bus.stop();
+  });
+
   it('test publish with async', async () => {
     const bus = new ThreadEventBus();
     const worker = createThreadWorker(join(__dirname, 'worker/publish_async.ts'));

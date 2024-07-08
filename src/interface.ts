@@ -122,14 +122,21 @@ export type SubscribeTopicListener = (
   responder?: IResponder
 ) => void | Promise<void>;
 
+export type SubscribeAbortController = {
+  abort: () => void;
+};
+
 export interface IEventBus<T> {
   addWorker(worker: T);
   start(err?: Error): Promise<void>;
-  subscribe(callback: SubscribeTopicListener, options?: SubscribeOptions): void;
+  subscribe(
+    callback: SubscribeTopicListener,
+    options?: SubscribeOptions
+  ): SubscribeAbortController;
   subscribeOnce(
     callback: SubscribeTopicListener,
     options?: SubscribeOptions
-  ): void;
+  ): SubscribeAbortController;
   publishAsync<ResData>(
     data: unknown,
     publishOptions?: PublishOptions

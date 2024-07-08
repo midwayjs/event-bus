@@ -22,7 +22,7 @@ describe('/test/local.test.ts', function () {
     await bus.stop();
   });
 
-  it('test base publish and subscribe', async () => {
+  it.only('test base publish and subscribe', async () => {
     const bus = new LocalEventBus({
       isWorker: false,
     });
@@ -45,6 +45,39 @@ describe('/test/local.test.ts', function () {
     });
 
     expect(result).toEqual({ data: 'hello world' });
+
+    await bus.stop();
+  });
+
+  it.only('test base subscribe and abort', async () => {
+    const bus = new LocalEventBus({
+      isWorker: false,
+    });
+    createLocalWorker(join(__dirname, 'local/base_abort.ts'));
+    await bus.start();
+
+    const result = await new Promise(resolve => {
+      const abortController = bus.subscribe(message => {
+        resolve(message.body);
+      });
+
+      abortController.abort();
+
+      bus.publish({
+          data: {
+            name: 'test',
+          }
+        },
+        {
+          topic: 'target',
+        });
+
+      setTimeout(() => {
+        resolve(null);
+      }, 1000);
+    });
+
+    expect(result).toEqual(null);
 
     await bus.stop();
   });
