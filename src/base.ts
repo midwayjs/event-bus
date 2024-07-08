@@ -10,6 +10,7 @@ import {
   MessageCategory,
   MessageType,
   PublishOptions,
+  SubscribeAbortController,
   SubscribeOptions,
   SubscribeTopicListener,
   WaitCheckOptions,
@@ -493,7 +494,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
   public subscribe(
     listener: SubscribeTopicListener,
     options: SubscribeOptions = {}
-  ) {
+  ): SubscribeAbortController {
     const topic = options.topic || DEFAULT_LISTENER_KEY;
     if (!this.topicListener.has(topic)) {
       this.topicListener.set(topic, new Set());
@@ -502,6 +503,11 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       listener['_subscribeOnce'] = true;
     }
     this.topicListener.get(topic).add(listener);
+    listener['_abortController'] = {
+      abort: () => {
+        this.topicListener.get(topic).delete(listener);
+      },
+    };
 
     // if topic has cache
     if (
@@ -517,14 +523,16 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
       }
       this.topicMessageCache.get(topic).clear();
     }
+
+    return listener['_abortController'];
   }
 
   public subscribeOnce(
     listener: SubscribeTopicListener,
     options: SubscribeOptions = {}
-  ) {
+  ): SubscribeAbortController {
     options.subscribeOnce = true;
-    this.subscribe(listener, options);
+    return this.subscribe(listener, options);
   }
 
   public publish(
