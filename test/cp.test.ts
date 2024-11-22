@@ -568,4 +568,27 @@ describe('/test/cp.test.ts', function () {
     await worker.kill();
     await bus.stop();
   });
+
+  it('test publishAsync from child to main with timeout', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async_from_worker_timeout.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const result = await new Promise<{error: {message: string}}>(resolve => {
+      bus.subscribe((message) => {
+        // 等待子进程发送的超时错误消息
+        if (message.body?.error?.message) {
+          resolve(message.body);
+        }
+      });
+
+      // 主进程不响应子进程的请求,让其超时
+    });
+
+    // 验证超时错误消息
+    expect(result.error.message).toMatch('timeout');
+    await worker.kill();
+    await bus.stop();
+  });
 });

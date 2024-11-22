@@ -549,4 +549,50 @@ describe('/test/thread.test.ts', function () {
     await bus.stop();
   });
 
+  it('test publishAsync from child to main', async () => {
+    const bus = new ThreadEventBus();
+    const worker = createThreadWorker(join(__dirname, 'worker/publish_async_from_worker.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    await new Promise<void>(resolve => {
+      bus.subscribe((message, responder?) => {
+        if (message.body.data === 'request from child') {
+          responder?.send({
+            data: 'response from main',
+          });
+        } else if (message.body.data === 'ok') {
+          resolve();
+        }
+      });
+    });
+
+    await worker.terminate();
+    await bus.stop();
+  });
+
+  it('test publishAsync from child to main with timeout', async () => {
+    const bus = new ThreadEventBus();
+    const worker = createThreadWorker(join(__dirname, 'worker/publish_async_from_worker_timeout.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const result = await new Promise<{error: {message: string}}>(resolve => {
+      bus.subscribe((message) => {
+        // 等待子进程发送的超时错误消息
+        if (message.body?.error?.message) {
+          resolve(message.body);
+        }
+      });
+      
+      // 主进程不响应子进程的请求,让其超时
+    });
+
+    // 验证超时错误消息
+    expect(result.error.message).toMatch('timeout');
+
+    await worker.terminate();
+    await bus.stop();
+  });
+
 });
