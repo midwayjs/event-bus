@@ -545,4 +545,27 @@ describe('/test/cp.test.ts', function () {
     worker.kill();
     await bus.stop();
   });
+
+  it('test publishAsync from child to main', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async_from_worker.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    await new Promise<void>(resolve => {
+      // 订阅来自子进程的消息，并返回响应
+      bus.subscribe((message, responder?) => {
+        if (message.body.data === 'request from child') {
+          responder?.send({
+            data: 'response from main',
+          });
+        } else if (message.body.data === 'ok') {
+          resolve();
+        }
+      });
+    });
+
+    await worker.kill();
+    await bus.stop();
+  });
 });

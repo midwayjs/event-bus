@@ -22,7 +22,7 @@ describe('/test/local.test.ts', function () {
     await bus.stop();
   });
 
-  it.only('test base publish and subscribe', async () => {
+  it('test base publish and subscribe', async () => {
     const bus = new LocalEventBus({
       isWorker: false,
     });
@@ -49,7 +49,7 @@ describe('/test/local.test.ts', function () {
     await bus.stop();
   });
 
-  it.only('test base subscribe and abort', async () => {
+  it('test base subscribe and abort', async () => {
     const bus = new LocalEventBus({
       isWorker: false,
     });
