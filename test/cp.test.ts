@@ -545,4 +545,50 @@ describe('/test/cp.test.ts', function () {
     worker.kill();
     await bus.stop();
   });
+
+  it('test publishAsync from child to main', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async_from_worker.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    await new Promise<void>(resolve => {
+      // 订阅来自子进程的消息，并返回响应
+      bus.subscribe((message, responder?) => {
+        if (message.body.data === 'request from child') {
+          responder?.send({
+            data: 'response from main',
+          });
+        } else if (message.body.data === 'ok') {
+          resolve();
+        }
+      });
+    });
+
+    await worker.kill();
+    await bus.stop();
+  });
+
+  it('test publishAsync from child to main with timeout', async () => {
+    const bus = new ChildProcessEventBus();
+    const worker = createChildProcessWorker(join(__dirname, 'cp/publish_async_from_worker_timeout.ts'));
+    bus.addWorker(worker);
+    await bus.start();
+
+    const result = await new Promise<{error: {message: string}}>(resolve => {
+      bus.subscribe((message) => {
+        // 等待子进程发送的超时错误消息
+        if (message.body?.error?.message) {
+          resolve(message.body);
+        }
+      });
+
+      // 主进程不响应子进程的请求,让其超时
+    });
+
+    // 验证超时错误消息
+    expect(result.error.message).toMatch('timeout');
+    await worker.kill();
+    await bus.stop();
+  });
 });

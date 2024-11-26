@@ -22,7 +22,7 @@ describe('/test/local.test.ts', function () {
     await bus.stop();
   });
 
-  it.only('test base publish and subscribe', async () => {
+  it('test base publish and subscribe', async () => {
     const bus = new LocalEventBus({
       isWorker: false,
     });
@@ -49,7 +49,7 @@ describe('/test/local.test.ts', function () {
     await bus.stop();
   });
 
-  it.only('test base subscribe and abort', async () => {
+  it('test base subscribe and abort', async () => {
     const bus = new LocalEventBus({
       isWorker: false,
     });
@@ -447,6 +447,30 @@ describe('/test/local.test.ts', function () {
     });
 
     expect(result).toEqual({ data: 'hello world' });
+
+    await bus.stop();
+  });
+
+  it('test publishAsync from child to main with timeout', async () => {
+    const bus = new LocalEventBus({
+      isWorker: false,
+    });
+    createLocalWorker(join(__dirname, 'local/publish_async_from_worker_timeout.ts'));
+    await bus.start();
+
+    const result = await new Promise<{error: {message: string}}>(resolve => {
+      bus.subscribe((message) => {
+        // 等待子进程发送的超时错误消息
+        if (message.body?.error?.message) {
+          resolve(message.body);
+        }
+      });
+      
+      // 主进程不响应子进程的请求,让其超时
+    });
+
+    // 验证超时错误消息
+    expect(result.error.message).toMatch('timeout');
 
     await bus.stop();
   });

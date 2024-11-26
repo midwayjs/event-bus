@@ -162,17 +162,14 @@ bus.publish(err);
 
 **publishAsync**
 
-同步的发送消息，会等待订阅方返回，包含超时参数，默认 5s。
+同步的发送消息，会等待订阅方返回，包含超时参数，默认 5s。支持 main <-> worker 双向异步通信。
 
-此 API 仅限于 main 向 worker 发送消息。
-
+从 main 发送到 worker:
 ```ts
-
-// subscribe
+// in worker
 bus.subscribe((message, responder) => {
   // message.body === {data: 'abc'}
-
-  responder && responder.send({
+  responder?.send({
     data: 'hello world',
   });
 
@@ -180,7 +177,7 @@ bus.subscribe((message, responder) => {
   responder.error(new Error('test'));
 });
 
-// invoke
+// in main
 const result = await bus.publishAsync({
   data: 'abc'
 }, {
@@ -188,11 +185,29 @@ const result = await bus.publishAsync({
 });
 
 // result => {data: 'hello world'}
-
 ```
 
-使用 try/catch 捕获错误。
+从 worker 发送到 main:
+```ts
+// in main
+bus.subscribe((message, responder) => {
+  // message.body === {data: 'abc'}
+  responder?.send({
+    data: 'hello world',
+  });
+});
 
+// in worker
+const result = await bus.publishAsync({
+  data: 'abc'
+}, {
+  timeout: 5000,
+});
+
+// result => {data: 'hello world'}
+```
+
+使用 try/catch 捕获错误:
 ```ts
 try {
   await bus.publishAsync({

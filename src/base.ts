@@ -391,9 +391,19 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
           const isChunk = originMessage.messageOptions?.['isChunk'] === true;
           const responder = new AckResponder();
           responder.onData(data => {
-            this.publish(data, {
-              relatedMessageId: originMessage.messageId,
-              isChunk,
+            this.transit({
+              messageCategory: MessageCategory.OUT,
+              message: {
+                messageId: this.generateMessageId(),
+                workerId: this.getWorkerId(),
+                type: MessageType.Response,
+                body: data,
+                messageOptions: {
+                  relatedMessageId: originMessage.messageId,
+                  isChunk,
+                  topic: originMessage.messageOptions?.topic,
+                },
+              },
             });
 
             if (!isChunk) {
@@ -586,7 +596,7 @@ export abstract class AbstractEventBus<T> implements IEventBus<T> {
         message: {
           messageId,
           workerId: this.getWorkerId(),
-          type: this.isMain() ? MessageType.Invoke : MessageType.Response,
+          type: MessageType.Invoke,
           body: data,
           messageOptions: {
             topic: publishOptions.topic,
